@@ -4,7 +4,8 @@
 //! - Per-account storage using `StorageMap`
 //! - Dispatchable calls (`set_counter`, `increment`)
 //! - Events and errors
-//! - Weight annotations
+//! - Weight annotations via benchmarks
+//! - Mock runtime and unit tests
 //!
 //! This pallet implements the same "counter" concept as the EVM and ink! contract
 //! templates, allowing developers to compare the three approaches side-by-side.
@@ -13,8 +14,20 @@
 
 pub use pallet::*;
 
+#[cfg(test)]
+mod mock;
+
+#[cfg(test)]
+mod tests;
+
+pub mod weights;
+
+#[cfg(feature = "runtime-benchmarks")]
+mod benchmarking;
+
 #[frame::pallet]
 pub mod pallet {
+	use crate::weights::WeightInfo;
 	use frame::prelude::*;
 
 	#[pallet::pallet]
@@ -25,6 +38,9 @@ pub mod pallet {
 	pub trait Config: frame_system::Config {
 		/// The overarching runtime event type.
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
+
+		/// A type representing the weights required by the dispatchables of this pallet.
+		type WeightInfo: WeightInfo;
 	}
 
 	/// Storage for counter values, one per account.
@@ -63,7 +79,7 @@ pub mod pallet {
 	impl<T: Config> Pallet<T> {
 		/// Set the counter for the calling account to a specific value.
 		#[pallet::call_index(0)]
-		#[pallet::weight(Weight::from_parts(10_000, 0) + T::DbWeight::get().writes(1))]
+		#[pallet::weight(T::WeightInfo::set_counter())]
 		pub fn set_counter(origin: OriginFor<T>, value: u32) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 			Counters::<T>::insert(&who, value);
@@ -73,7 +89,7 @@ pub mod pallet {
 
 		/// Increment the counter for the calling account by one.
 		#[pallet::call_index(1)]
-		#[pallet::weight(Weight::from_parts(10_000, 0) + T::DbWeight::get().reads_writes(1, 1))]
+		#[pallet::weight(T::WeightInfo::increment())]
 		pub fn increment(origin: OriginFor<T>) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 			let new_value = Counters::<T>::get(&who)
@@ -83,80 +99,5 @@ pub mod pallet {
 			Self::deposit_event(Event::CounterIncremented { who, new_value });
 			Ok(())
 		}
-	}
-}
-
-#[cfg(test)]
-mod tests {
-	use super::*;
-	use frame::{runtime::prelude::*, testing_prelude::*};
-
-	#[frame_construct_runtime]
-	mod test_runtime {
-		#[runtime::runtime]
-		#[runtime::derive(
-			RuntimeCall,
-			RuntimeEvent,
-			RuntimeError,
-			RuntimeOrigin,
-			RuntimeFreezeReason,
-			RuntimeHoldReason,
-			RuntimeSlashReason,
-			RuntimeLockId,
-			RuntimeTask,
-			RuntimeViewFunction
-		)]
-		pub struct Test;
-
-		#[runtime::pallet_index(0)]
-		pub type System = frame_system;
-		#[runtime::pallet_index(1)]
-		pub type Counter = crate;
-	}
-
-	#[derive_impl(frame_system::config_preludes::TestDefaultConfig)]
-	impl frame_system::Config for Test {
-		type Block = MockBlock<Self>;
-	}
-
-	impl crate::pallet::Config for Test {
-		type RuntimeEvent = RuntimeEvent;
-	}
-
-	#[test]
-	fn set_counter_works() {
-		TestState::new_empty().execute_with(|| {
-			assert_eq!(Counters::<Test>::get(1), 0);
-			assert_ok!(Counter::set_counter(RuntimeOrigin::signed(1), 42));
-			assert_eq!(Counters::<Test>::get(1), 42);
-		});
-	}
-
-	#[test]
-	fn increment_works() {
-		TestState::new_empty().execute_with(|| {
-			assert_ok!(Counter::set_counter(RuntimeOrigin::signed(1), 10));
-			assert_ok!(Counter::increment(RuntimeOrigin::signed(1)));
-			assert_eq!(Counters::<Test>::get(1), 11);
-		});
-	}
-
-	#[test]
-	fn increment_from_zero_works() {
-		TestState::new_empty().execute_with(|| {
-			assert_ok!(Counter::increment(RuntimeOrigin::signed(1)));
-			assert_eq!(Counters::<Test>::get(1), 1);
-		});
-	}
-
-	#[test]
-	fn increment_overflow_fails() {
-		TestState::new_empty().execute_with(|| {
-			Counters::<Test>::insert(1, u32::MAX);
-			assert_err!(
-				Counter::increment(RuntimeOrigin::signed(1)),
-				Error::<Test>::CounterOverflow
-			);
-		});
 	}
 }

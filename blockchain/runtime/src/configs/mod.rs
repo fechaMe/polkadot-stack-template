@@ -264,6 +264,7 @@ impl pallet_collator_selection::Config for Runtime {
 /// Configure the template counter pallet.
 impl pallet_template::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
+	type WeightInfo = pallet_template::weights::SubstrateWeight<Runtime>;
 }
 
 // ── pallet-revive (EVM + PVM smart contracts) ──────────────────────────
