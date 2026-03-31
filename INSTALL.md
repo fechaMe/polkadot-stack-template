@@ -50,6 +50,32 @@ chmod +x polkadot-omni-node
 sudo mv polkadot-omni-node /usr/local/bin/
 ```
 
+### Ethereum RPC Adapter (eth-rpc)
+
+Bridges Ethereum JSON-RPC (port 8545) to the Substrate node, enabling Hardhat/ethers.js/MetaMask to interact with pallet-revive contracts.
+
+Download from the same release:
+
+**macOS (Apple Silicon):**
+```bash
+curl -L https://github.com/paritytech/polkadot-sdk/releases/download/polkadot-stable2512-3/eth-rpc-aarch64-apple-darwin -o eth-rpc
+chmod +x eth-rpc
+sudo mv eth-rpc /usr/local/bin/
+```
+
+**Linux (x86_64):**
+```bash
+curl -L https://github.com/paritytech/polkadot-sdk/releases/download/polkadot-stable2512-3/eth-rpc -o eth-rpc
+chmod +x eth-rpc
+sudo mv eth-rpc /usr/local/bin/
+```
+
+Verify:
+```bash
+eth-rpc --version
+# Should output: pallet-revive-eth-rpc 0.12.0
+```
+
 Verify the version:
 ```bash
 polkadot-omni-node --version

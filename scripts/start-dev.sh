@@ -23,8 +23,40 @@ chain-spec-builder \
 
 echo "  Chain spec written to blockchain/chain_spec.json"
 
-# Start the node
-echo "[3/3] Starting omni-node in dev mode..."
-echo "  RPC endpoint: ws://127.0.0.1:9944"
+# Start the node and eth-rpc adapter
+echo "[3/3] Starting omni-node + eth-rpc adapter..."
+echo "  Substrate RPC: ws://127.0.0.1:9944"
+echo "  Ethereum RPC:  http://127.0.0.1:8545"
 echo ""
-polkadot-omni-node --chain "$ROOT_DIR/blockchain/chain_spec.json" --dev
+
+# Start omni-node in background
+polkadot-omni-node --chain "$ROOT_DIR/blockchain/chain_spec.json" --dev &
+NODE_PID=$!
+
+# Wait for node
+for i in $(seq 1 30); do
+    if curl -s -o /dev/null http://127.0.0.1:9944 2>/dev/null; then break; fi
+    sleep 1
+done
+
+# Start eth-rpc adapter (bridges Ethereum JSON-RPC to Substrate RPC)
+eth-rpc --dev &
+ETH_RPC_PID=$!
+
+cleanup() {
+    echo ""
+    echo "Shutting down..."
+    kill $ETH_RPC_PID 2>/dev/null
+    kill $NODE_PID 2>/dev/null
+    wait $ETH_RPC_PID 2>/dev/null
+    wait $NODE_PID 2>/dev/null
+}
+trap cleanup EXIT INT TERM
+
+echo ""
+echo "=== Dev environment running ==="
+echo "  Substrate RPC: ws://127.0.0.1:9944"
+echo "  Ethereum RPC:  http://127.0.0.1:8545"
+echo ""
+echo "Press Ctrl+C to stop."
+wait $NODE_PID

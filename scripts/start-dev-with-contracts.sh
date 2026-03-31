@@ -28,11 +28,11 @@ cd "$ROOT_DIR/contracts/pvm" && npm install --silent && npx hardhat compile
 cd "$ROOT_DIR"
 
 # Start the node in background
-echo "[4/5] Starting omni-node in dev mode..."
+echo "[4/5] Starting omni-node + eth-rpc adapter..."
 polkadot-omni-node --chain "$ROOT_DIR/blockchain/chain_spec.json" --dev &
 NODE_PID=$!
 
-# Wait for node to be ready
+# Wait for node
 echo "  Waiting for node..."
 for i in $(seq 1 30); do
     if curl -s -o /dev/null http://127.0.0.1:9944 2>/dev/null; then
@@ -47,24 +47,40 @@ for i in $(seq 1 30); do
     sleep 1
 done
 
+# Start eth-rpc adapter
+eth-rpc --dev &
+ETH_RPC_PID=$!
+sleep 3
+echo "  Ethereum RPC ready (http://127.0.0.1:8545)"
+
 # Deploy contracts
 echo "[5/5] Deploying contracts..."
 echo "  Deploying Counter via EVM (solc)..."
 cd "$ROOT_DIR/contracts/evm"
-npx hardhat ignition deploy ./ignition/modules/Counter.js --network local 2>&1 || echo "  (EVM deploy skipped - eth-rpc adapter may not be running)"
+npx hardhat ignition deploy ./ignition/modules/Counter.js --network local 2>&1 || echo "  (EVM deploy failed)"
 
 echo "  Deploying Counter via PVM (resolc)..."
 cd "$ROOT_DIR/contracts/pvm"
-npx hardhat ignition deploy ./ignition/modules/Counter.js --network localNode 2>&1 || echo "  (PVM deploy skipped - eth-rpc adapter may not be running)"
+npx hardhat ignition deploy ./ignition/modules/Counter.js --network localNode 2>&1 || echo "  (PVM deploy failed)"
 
 cd "$ROOT_DIR"
+
+cleanup() {
+    echo ""
+    echo "Shutting down..."
+    kill $ETH_RPC_PID 2>/dev/null
+    kill $NODE_PID 2>/dev/null
+    wait $ETH_RPC_PID 2>/dev/null
+    wait $NODE_PID 2>/dev/null
+}
+trap cleanup EXIT INT TERM
+
 echo ""
 echo "=== Dev environment running ==="
-echo "  Node RPC: ws://127.0.0.1:9944"
-echo "  Node PID: $NODE_PID"
+echo "  Substrate RPC: ws://127.0.0.1:9944"
+echo "  Ethereum RPC:  http://127.0.0.1:8545"
 echo ""
 echo "  Frontend: cd web && npm install && npm run dev"
-echo "  Stop:     kill $NODE_PID"
 echo ""
 echo "Press Ctrl+C to stop."
 wait $NODE_PID
