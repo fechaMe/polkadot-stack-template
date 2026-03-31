@@ -14,16 +14,16 @@ var toBinary = (base64) => {
 };
 
 // .papi/descriptors/src/stack_template.ts
-var descriptorValues = import("./descriptors-U3BXXWSA.mjs").then((module) => module["Stack_template"]);
-var metadataTypes = import("./metadataTypes-XOKYH3L7.mjs").then(
+var descriptorValues = import("./descriptors-JLLVBB7O.mjs").then((module) => module["Stack_template"]);
+var metadataTypes = import("./metadataTypes-63YLTW26.mjs").then(
   (module) => toBinary("default" in module ? module.default : module)
 );
 var asset = {};
 var extensions = {};
-var getMetadata = () => import("./stack_template_metadata-ZLOR43Q3.mjs").then(
+var getMetadata = () => import("./stack_template_metadata-TG3TQMYR.mjs").then(
   (module) => toBinary("default" in module ? module.default : module)
 );
-var genesis = "0xcb325b4035ca6e194d71e3940900c3fcc7a07c6520bc06fe86dff90d90f0b59e";
+var genesis = "0xa34ba5b6c05f162c2576e2fa1a07338299870f428f5dfe47990a1e2d374e88bb";
 var _allDescriptors = { descriptors: descriptorValues, metadataTypes, asset, extensions, getMetadata, genesis };
 var stack_template_default = _allDescriptors;
 
@@ -79,7 +79,7 @@ var TransactionValidityUnknownTransaction = _Enum;
 var TransactionValidityTransactionSource = _Enum;
 
 // .papi/descriptors/src/index.ts
-var metadatas = { ["0xcaef2a0a179a8b3b1087fe707c895fc32d3343f5dbc3ab45cd4a1a1e2356d3f8"]: stack_template_default };
+var metadatas = { ["0xdd126935b4c09d1ce6e4b1a6d80b07f88a202b05e82a75cf9c7e49825d0473f9"]: stack_template_default };
 var getMetadata2 = async (codeHash) => {
   try {
     return await metadatas[codeHash].getMetadata();

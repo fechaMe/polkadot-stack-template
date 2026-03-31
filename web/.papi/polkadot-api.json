@@ -5,8 +5,8 @@
     "stack_template": {
       "wsUrl": "ws://127.0.0.1:9944",
       "metadata": ".papi/metadata/stack_template.scale",
-      "genesis": "0xcb325b4035ca6e194d71e3940900c3fcc7a07c6520bc06fe86dff90d90f0b59e",
-      "codeHash": "0xcaef2a0a179a8b3b1087fe707c895fc32d3343f5dbc3ab45cd4a1a1e2356d3f8"
+      "genesis": "0xa34ba5b6c05f162c2576e2fa1a07338299870f428f5dfe47990a1e2d374e88bb",
+      "codeHash": "0xdd126935b4c09d1ce6e4b1a6d80b07f88a202b05e82a75cf9c7e49825d0473f9"
     }
   }
 }
