@@ -1,13 +1,24 @@
+use alloy::primitives::Address;
+use alloy::providers::ProviderBuilder;
+use alloy::signers::local::PrivateKeySigner;
+use alloy::sol;
 use clap::Subcommand;
-use k256::ecdsa::SigningKey;
 use serde::Deserialize;
-use sha3::{Digest, Keccak256};
 use std::fs;
 use std::path::PathBuf;
 
-const ALICE_KEY: &str = "5fb92d6e98884f76de468fa3f6278f8807c48bebc13595d45af5bdc4da702133";
-const BOB_KEY: &str = "8075991ce870b93a8870eca0c0f91913d12f47948ca0fd25b49c6fa7cdbeee8b";
-const CHARLIE_KEY: &str = "0b6e18cafb6ed99687ec547bd28139cafbd3a4f28014f8640076aba0082bf262";
+const ALICE_KEY: &str = "0x5fb92d6e98884f76de468fa3f6278f8807c48bebc13595d45af5bdc4da702133";
+const BOB_KEY: &str = "0x8075991ce870b93a8870eca0c0f91913d12f47948ca0fd25b49c6fa7cdbeee8b";
+const CHARLIE_KEY: &str = "0x0b6e18cafb6ed99687ec547bd28139cafbd3a4f28014f8640076aba0082bf262";
+
+sol! {
+    #[sol(rpc)]
+    contract Counter {
+        function getCounter(address account) external view returns (uint256);
+        function setCounter(uint256 value) external;
+        function increment() external;
+    }
+}
 
 #[derive(Debug, Deserialize)]
 pub struct Deployments {
@@ -19,7 +30,7 @@ pub struct Deployments {
 pub enum ContractAction {
     /// Show deployed contract addresses and dev accounts
     Info,
-    /// Get the counter value for an account via eth-rpc
+    /// Get the counter value for an account
     Get {
         /// Contract type: evm or pvm
         #[arg(value_parser = ["evm", "pvm"])]
@@ -28,23 +39,46 @@ pub enum ContractAction {
         #[arg(default_value = "alice")]
         account: String,
     },
+    /// Set the counter to a value
+    Set {
+        /// Contract type: evm or pvm
+        #[arg(value_parser = ["evm", "pvm"])]
+        contract_type: String,
+        /// Value to set
+        value: u64,
+        /// Signing account (alice, bob, charlie)
+        #[arg(long, default_value = "alice")]
+        signer: String,
+    },
+    /// Increment the counter
+    Increment {
+        /// Contract type: evm or pvm
+        #[arg(value_parser = ["evm", "pvm"])]
+        contract_type: String,
+        /// Signing account (alice, bob, charlie)
+        #[arg(long, default_value = "alice")]
+        signer: String,
+    },
 }
 
-fn private_key_to_address(key_hex: &str) -> String {
-    let key_bytes = hex::decode(key_hex).expect("invalid hex key");
-    let signing_key = SigningKey::from_slice(&key_bytes).expect("invalid private key");
-    let verifying_key = signing_key.verifying_key();
-    let public_key = verifying_key.to_encoded_point(false);
-    let hash = Keccak256::digest(&public_key.as_bytes()[1..]);
-    format!("0x{}", hex::encode(&hash[12..]))
+fn resolve_signer(name: &str) -> Result<PrivateKeySigner, Box<dyn std::error::Error>> {
+    let lowered = name.to_lowercase();
+    let key = match lowered.as_str() {
+        "alice" => ALICE_KEY,
+        "bob" => BOB_KEY,
+        "charlie" => CHARLIE_KEY,
+        hex if hex.starts_with("0x") => hex,
+        _ => return Err(format!("Unknown signer: {name}. Use alice, bob, or charlie.").into()),
+    };
+    Ok(key.parse()?)
 }
 
-fn resolve_account(account: &str) -> Result<String, Box<dyn std::error::Error>> {
+fn resolve_address(account: &str) -> Result<Address, Box<dyn std::error::Error>> {
     match account.to_lowercase().as_str() {
-        "alice" => Ok(private_key_to_address(ALICE_KEY)),
-        "bob" => Ok(private_key_to_address(BOB_KEY)),
-        "charlie" => Ok(private_key_to_address(CHARLIE_KEY)),
-        addr if addr.starts_with("0x") => Ok(addr.to_string()),
+        "alice" => Ok(resolve_signer("alice")?.address()),
+        "bob" => Ok(resolve_signer("bob")?.address()),
+        "charlie" => Ok(resolve_signer("charlie")?.address()),
+        addr if addr.starts_with("0x") => Ok(addr.parse()?),
         _ => Err(format!("Unknown account: {account}. Use alice, bob, charlie, or an 0x address.").into()),
     }
 }
@@ -66,25 +100,21 @@ fn load_deployments() -> Result<Deployments, Box<dyn std::error::Error>> {
 fn get_contract_address(
     deployments: &Deployments,
     contract_type: &str,
-) -> Result<String, Box<dyn std::error::Error>> {
+) -> Result<Address, Box<dyn std::error::Error>> {
     let addr = match contract_type {
         "evm" => deployments.evm.as_deref(),
         "pvm" => deployments.pvm.as_deref(),
         _ => None,
     };
-    addr.map(String::from).ok_or_else(|| {
+    let addr_str = addr.ok_or_else(|| -> Box<dyn std::error::Error> {
         format!(
             "{} contract not deployed. Run: cd contracts/{} && npm run deploy:local",
             contract_type.to_uppercase(),
             contract_type
         )
         .into()
-    })
-}
-
-fn function_selector(signature: &str) -> [u8; 4] {
-    let hash = Keccak256::digest(signature.as_bytes());
-    [hash[0], hash[1], hash[2], hash[3]]
+    })?;
+    Ok(addr_str.parse()?)
 }
 
 pub async fn run(
@@ -107,9 +137,10 @@ pub async fn run(
             println!();
             println!("Dev Accounts (Ethereum)");
             println!("=======================");
-            println!("Alice:   {}", private_key_to_address(ALICE_KEY));
-            println!("Bob:     {}", private_key_to_address(BOB_KEY));
-            println!("Charlie: {}", private_key_to_address(CHARLIE_KEY));
+            for name in ["alice", "bob", "charlie"] {
+                let signer = resolve_signer(name)?;
+                println!("{:<10} {}", format!("{}:", capitalize(name)), signer.address());
+            }
         }
         ContractAction::Get {
             contract_type,
@@ -117,56 +148,79 @@ pub async fn run(
         } => {
             let deployments = load_deployments()?;
             let contract_addr = get_contract_address(&deployments, &contract_type)?;
-            let eth_account = resolve_account(&account)?;
+            let account_addr = resolve_address(&account)?;
 
-            // Build eth_call data: getCounter(address)
-            let selector = function_selector("getCounter(address)");
-            let addr_clean = eth_account
-                .strip_prefix("0x")
-                .unwrap_or(&eth_account)
-                .to_lowercase();
-            let calldata = format!("0x{}{:0>64}", hex::encode(selector), addr_clean);
-
-            let client = reqwest::Client::new();
-            let response: serde_json::Value = client
-                .post(eth_rpc_url)
-                .json(&serde_json::json!({
-                    "jsonrpc": "2.0",
-                    "method": "eth_call",
-                    "params": [{
-                        "to": contract_addr,
-                        "data": calldata
-                    }, "latest"],
-                    "id": 1
-                }))
-                .send()
-                .await?
-                .json()
-                .await?;
-
-            if let Some(error) = response.get("error") {
-                return Err(format!("RPC error: {error}").into());
-            }
-
-            let result = response["result"]
-                .as_str()
-                .ok_or("Invalid RPC response")?;
-
-            let hex_str = result.strip_prefix("0x").unwrap_or(result);
-            let value = if hex_str.is_empty() || hex_str.chars().all(|c| c == '0') {
-                0u128
-            } else {
-                u128::from_str_radix(hex_str.trim_start_matches('0'), 16)?
-            };
+            let provider = ProviderBuilder::new().connect_http(eth_rpc_url.parse()?);
+            let counter = Counter::new(contract_addr, &provider);
+            let result = counter.getCounter(account_addr).call().await?;
 
             println!(
                 "Counter for {} on {} contract: {}",
                 account,
                 contract_type.to_uppercase(),
-                value
+                result
+            );
+        }
+        ContractAction::Set {
+            contract_type,
+            value,
+            signer,
+        } => {
+            let deployments = load_deployments()?;
+            let contract_addr = get_contract_address(&deployments, &contract_type)?;
+            let wallet = alloy::network::EthereumWallet::from(resolve_signer(&signer)?);
+
+            let provider = ProviderBuilder::new()
+                .wallet(wallet)
+                .connect_http(eth_rpc_url.parse()?);
+            let counter = Counter::new(contract_addr, &provider);
+
+            println!("Submitting setCounter({value}) to {} contract...", contract_type.to_uppercase());
+            let pending = counter
+                .setCounter(alloy::primitives::U256::from(value))
+                .send()
+                .await?;
+            let receipt = pending.get_receipt().await?;
+            println!(
+                "Confirmed in block {}: tx {}",
+                receipt.block_number.unwrap_or_default(),
+                receipt.transaction_hash
+            );
+        }
+        ContractAction::Increment {
+            contract_type,
+            signer,
+        } => {
+            let deployments = load_deployments()?;
+            let contract_addr = get_contract_address(&deployments, &contract_type)?;
+            let wallet = alloy::network::EthereumWallet::from(resolve_signer(&signer)?);
+
+            let provider = ProviderBuilder::new()
+                .wallet(wallet)
+                .connect_http(eth_rpc_url.parse()?);
+            let counter = Counter::new(contract_addr, &provider);
+
+            println!("Submitting increment() to {} contract...", contract_type.to_uppercase());
+            let pending = counter
+                .increment()
+                .send()
+                .await?;
+            let receipt = pending.get_receipt().await?;
+            println!(
+                "Confirmed in block {}: tx {}",
+                receipt.block_number.unwrap_or_default(),
+                receipt.transaction_hash
             );
         }
     }
 
     Ok(())
+}
+
+fn capitalize(s: &str) -> String {
+    let mut c = s.chars();
+    match c.next() {
+        None => String::new(),
+        Some(f) => f.to_uppercase().to_string() + c.as_str(),
+    }
 }
