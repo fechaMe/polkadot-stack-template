@@ -146,6 +146,26 @@ docker compose up
 zombienet spawn blockchain/zombienet.toml
 ```
 
+## Bulletin Chain (IPFS Upload)
+
+The frontend supports optional file upload to the Polkadot Bulletin Chain, which makes files available via IPFS.
+
+**Prerequisites:**
+- Account must be authorized on the Bulletin Chain: [paritytech.github.io/polkadot-bulletin-chain](https://paritytech.github.io/polkadot-bulletin-chain/)
+- Bulletin Chain RPC: `wss://paseo-bulletin-rpc.polkadot.io`
+
+**How it works:**
+1. Toggle "Upload to IPFS (via Bulletin Chain)" in the file drop zone
+2. The frontend checks account authorization
+3. File bytes are uploaded via `TransactionStorage.store()`
+4. Then the hash is claimed on the parachain/contract
+5. The IPFS link appears in the claims list (verified via gateway HEAD request)
+
+**Notes:**
+- Files expire after ~7 days unless renewed
+- Maximum 8 MiB per file
+- IPFS gateway: `https://paseo-ipfs.polkadot.io/ipfs/{cid}`
+
 ## CLI
 
 The CLI reads contract addresses from `deployments.json` in the project root. After deploying contracts, it works immediately:
@@ -155,19 +175,20 @@ The CLI reads contract addresses from `deployments.json` in the project root. Af
 cargo run -p stack-cli -- chain info
 
 # Pallet interaction (via Substrate RPC)
-cargo run -p stack-cli -- pallet get alice
-cargo run -p stack-cli -- pallet set 42
-cargo run -p stack-cli -- pallet increment
+cargo run -p stack-cli -- pallet create-claim 0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+cargo run -p stack-cli -- pallet get-claim 0x0123...
+cargo run -p stack-cli -- pallet list-claims
+cargo run -p stack-cli -- pallet revoke-claim 0x0123...
 
 # Contract interaction (via eth-rpc)
 cargo run -p stack-cli -- contract info
-cargo run -p stack-cli -- contract get evm alice
-cargo run -p stack-cli -- contract set evm 42
-cargo run -p stack-cli -- contract increment pvm --signer bob
+cargo run -p stack-cli -- contract create-claim evm 0x0123...
+cargo run -p stack-cli -- contract get-claim evm 0x0123...
+cargo run -p stack-cli -- contract revoke-claim pvm 0x0123... --signer bob
 ```
 
 Use `--url` and `--eth-rpc-url` flags to target different endpoints:
 
 ```bash
-cargo run -p stack-cli -- --url wss://your-node:9944 --eth-rpc-url https://your-eth-rpc:8545 contract get evm alice
+cargo run -p stack-cli -- --url wss://your-node:9944 --eth-rpc-url https://your-eth-rpc:8545 contract get-claim evm 0x0123...
 ```
