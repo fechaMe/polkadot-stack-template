@@ -14,6 +14,12 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 
 The project pins Rust stable via `rust-toolchain.toml`. The WASM compilation target is installed automatically.
 
+Formatting uses nightly-only `rustfmt` options (e.g. `imports_granularity`), so install the nightly toolchain:
+
+```bash
+rustup toolchain install nightly
+```
+
 ### Node.js
 
 Required for the Solidity contracts (Hardhat) and the frontend (Vite + React).
@@ -132,6 +138,31 @@ SKIP_PALLET_REVIVE_FIXTURES=1 cargo test --workspace --features runtime-benchmar
 ```
 
 > The `SKIP_PALLET_REVIVE_FIXTURES` env var is needed because pallet-revive's test fixture compilation requires a nightly Rust toolchain.
+
+### Lint & Format
+
+The project uses `rustfmt` for Rust, ESLint + Prettier for TypeScript/React, and Prettier with `prettier-plugin-solidity` for Solidity.
+
+**Rust:**
+```bash
+cargo +nightly fmt              # format all Rust code
+cargo +nightly fmt --check      # check without modifying
+cargo clippy --workspace        # lint
+```
+
+**Frontend:**
+```bash
+cd web
+npm run fmt           # format TypeScript/React
+npm run fmt:check     # check only
+npm run lint          # ESLint
+```
+
+**Contracts:**
+```bash
+cd contracts/evm && npm run fmt     # format Solidity + TypeScript
+cd contracts/pvm && npm run fmt     # format Solidity + TypeScript
+```
 
 ### Compile Solidity Contracts
 

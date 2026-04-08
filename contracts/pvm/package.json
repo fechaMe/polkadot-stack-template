@@ -10,7 +10,9 @@
     "compile": "npx hardhat compile",
     "test": "npx hardhat test",
     "deploy:local": "npx hardhat run scripts/deploy.ts --network local",
-    "deploy:testnet": "npx hardhat run scripts/deploy.ts --network polkadotTestnet"
+    "deploy:testnet": "npx hardhat run scripts/deploy.ts --network polkadotTestnet",
+    "fmt": "prettier --write 'contracts/**/*.sol' 'scripts/**/*.ts' 'test/**/*.ts' hardhat.config.ts",
+    "fmt:check": "prettier --check 'contracts/**/*.sol' 'scripts/**/*.ts' 'test/**/*.ts' hardhat.config.ts"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-network-helpers": "^1.0.0",
@@ -21,6 +23,8 @@
     "@types/mocha": "^10.0.10",
     "chai": "^4.3.0",
     "hardhat": "^2.27.0",
+    "prettier": "^3.8.1",
+    "prettier-plugin-solidity": "^2.3.1",
     "ts-node": "^10.9.2",
     "typescript": "^6.0.2",
     "viem": "^2.0.0"

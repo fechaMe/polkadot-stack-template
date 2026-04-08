@@ -47,13 +47,7 @@ fn testnet_genesis(
 		session: SessionConfig {
 			keys: invulnerables
 				.into_iter()
-				.map(|(acc, aura)| {
-					(
-						acc.clone(),
-						acc,
-						template_session_keys(aura),
-					)
-				})
+				.map(|(acc, aura)| { (acc.clone(), acc, template_session_keys(aura),) })
 				.collect::<Vec<_>>(),
 		},
 		polkadot_xcm: PolkadotXcmConfig { safe_xcm_version: Some(SAFE_XCM_VERSION) },

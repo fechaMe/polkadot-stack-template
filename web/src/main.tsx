@@ -10,17 +10,17 @@ import AccountsPage from "./pages/AccountsPage";
 import "./index.css";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
-  <React.StrictMode>
-    <HashRouter>
-      <Routes>
-        <Route element={<App />}>
-          <Route index element={<HomePage />} />
-          <Route path="pallet" element={<PalletPage />} />
-          <Route path="evm" element={<EvmContractPage />} />
-          <Route path="pvm" element={<PvmContractPage />} />
-          <Route path="accounts" element={<AccountsPage />} />
-        </Route>
-      </Routes>
-    </HashRouter>
-  </React.StrictMode>
+	<React.StrictMode>
+		<HashRouter>
+			<Routes>
+				<Route element={<App />}>
+					<Route index element={<HomePage />} />
+					<Route path="pallet" element={<PalletPage />} />
+					<Route path="evm" element={<EvmContractPage />} />
+					<Route path="pvm" element={<PvmContractPage />} />
+					<Route path="accounts" element={<AccountsPage />} />
+				</Route>
+			</Routes>
+		</HashRouter>
+	</React.StrictMode>,
 );

@@ -44,13 +44,8 @@ pub type LocationToAccountId = (
 	AccountId32Aliases<RelayNetwork, AccountId>,
 );
 
-pub type LocalAssetTransactor = FungibleAdapter<
-	Balances,
-	IsConcrete<RelayLocation>,
-	LocationToAccountId,
-	AccountId,
-	(),
->;
+pub type LocalAssetTransactor =
+	FungibleAdapter<Balances, IsConcrete<RelayLocation>, LocationToAccountId, AccountId, ()>;
 
 pub type XcmOriginToTransactDispatchOrigin = (
 	SovereignSignedViaLocation<LocationToAccountId, RuntimeOrigin>,
@@ -69,10 +64,7 @@ parameter_types! {
 pub struct ParentOrParentsExecutivePlurality;
 impl Contains<Location> for ParentOrParentsExecutivePlurality {
 	fn contains(location: &Location) -> bool {
-		matches!(
-			location.unpack(),
-			(1, []) | (1, [Plurality { id: BodyId::Executive, .. }])
-		)
+		matches!(location.unpack(), (1, []) | (1, [Plurality { id: BodyId::Executive, .. }]))
 	}
 }
 
@@ -130,10 +122,8 @@ impl staging_xcm_executor::Config for XcmConfig {
 
 pub type LocalOriginToLocation = SignedToAccountId32<RuntimeOrigin, AccountId, RelayNetwork>;
 
-pub type XcmRouter = WithUniqueTopic<(
-	cumulus_primitives_utility::ParentAsUmp<ParachainSystem, (), ()>,
-	XcmpQueue,
-)>;
+pub type XcmRouter =
+	WithUniqueTopic<(cumulus_primitives_utility::ParentAsUmp<ParachainSystem, (), ()>, XcmpQueue)>;
 
 impl pallet_xcm::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;

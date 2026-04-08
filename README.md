@@ -129,6 +129,24 @@ cd contracts/evm && npx hardhat vars set PRIVATE_KEY && npm run deploy:testnet
 cd contracts/pvm && npx hardhat vars set PRIVATE_KEY && npm run deploy:testnet
 ```
 
+### Lint & format
+
+```bash
+# Rust (requires nightly for rustfmt config options)
+cargo +nightly fmt              # format
+cargo +nightly fmt --check      # check only
+cargo clippy --workspace        # lint
+
+# Frontend (web/)
+cd web && npm run fmt           # format
+cd web && npm run fmt:check     # check only
+cd web && npm run lint          # eslint
+
+# Contracts (contracts/evm/ and contracts/pvm/)
+cd contracts/evm && npm run fmt
+cd contracts/pvm && npm run fmt
+```
+
 ### Run tests
 
 ```bash
@@ -160,6 +178,9 @@ polkadot-stack-template/
 |-- cli/                      subxt + alloy Rust CLI
 |-- scripts/                  Dev and deployment scripts
 |-- Cargo.toml                Rust workspace
+|-- rustfmt.toml              Rust formatting (matches polkadot-sdk style)
+|-- .prettierrc               Prettier config for TypeScript + Solidity
+|-- .editorconfig             Editor defaults (tabs, LF, charset)
 `-- rust-toolchain.toml       Pinned Rust version
 ```
 

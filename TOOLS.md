@@ -193,6 +193,23 @@ npm run deploy:local         # Deploy to local node via eth-rpc
 npm run deploy:testnet       # Deploy to Polkadot TestNet
 ```
 
+## Code Formatting & Linting
+
+Consistent formatting across all languages.
+
+| Tool | Scope | Config |
+|---|---|---|
+| `rustfmt` (nightly) | Rust (blockchain/, cli/) | `rustfmt.toml` — matches polkadot-sdk style |
+| ESLint | TypeScript/React (web/) | `web/eslint.config.js` — typescript-eslint + react-hooks |
+| Prettier | TypeScript (web/) + Solidity + TS (contracts/) | `.prettierrc` (root) + `contracts/*/.prettierrc` (Solidity plugin) |
+
+```bash
+cargo +nightly fmt && cargo clippy --workspace   # Rust
+cd web && npm run lint && npm run fmt             # Frontend
+cd contracts/evm && npm run fmt                   # EVM contracts
+cd contracts/pvm && npm run fmt                   # PVM contracts
+```
+
 ## Polkadot Product SDK (Spektr)
 
 The Nova Sama Technologies SDK for building products that run inside the Polkadot Triangle ecosystem (Desktop, Mobile, Web hosts). Enables Spektr wallet injection for accounts managed by the Polkadot app.

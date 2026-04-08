@@ -33,9 +33,7 @@ fn create_claim_emits_event() {
 		System::set_block_number(1);
 		let hash = test_hash(1);
 		assert_ok!(ProofOfExistence::create_claim(RuntimeOrigin::signed(1), hash));
-		System::assert_last_event(
-			crate::Event::ClaimCreated { who: 1, hash }.into(),
-		);
+		System::assert_last_event(crate::Event::ClaimCreated { who: 1, hash }.into());
 	});
 }
 
@@ -68,9 +66,7 @@ fn revoke_claim_emits_event() {
 		let hash = test_hash(1);
 		assert_ok!(ProofOfExistence::create_claim(RuntimeOrigin::signed(1), hash));
 		assert_ok!(ProofOfExistence::revoke_claim(RuntimeOrigin::signed(1), hash));
-		System::assert_last_event(
-			crate::Event::ClaimRevoked { who: 1, hash }.into(),
-		);
+		System::assert_last_event(crate::Event::ClaimRevoked { who: 1, hash }.into());
 	});
 }
 

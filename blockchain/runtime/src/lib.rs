@@ -27,9 +27,7 @@ use sp_runtime::{
 use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
 
-use frame_support::weights::{
-	constants::WEIGHT_REF_TIME_PER_SECOND, Weight,
-};
+use frame_support::weights::{constants::WEIGHT_REF_TIME_PER_SECOND, Weight};
 pub use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 pub use sp_runtime::{MultiAddress, Perbill, Permill};
 
@@ -183,10 +181,7 @@ type ConsensusHook = cumulus_pallet_aura_ext::FixedVelocityConsensusHook<
 
 #[cfg(feature = "std")]
 pub fn native_version() -> NativeVersion {
-	NativeVersion {
-		runtime_version: VERSION,
-		can_author_with: Default::default(),
-	}
+	NativeVersion { runtime_version: VERSION, can_author_with: Default::default() }
 }
 
 #[frame_support::runtime]
