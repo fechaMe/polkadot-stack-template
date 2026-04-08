@@ -55,7 +55,7 @@ chain-spec-builder \
   --chain-name "Polkadot Stack Template" \
   --chain-id "polkadot-stack-template" \
   -t development \
-  --relay-chain paseo \
+  --relay-chain rococo-local \
   --para-id 1000 \
   --runtime "$RUNTIME_WASM" \
   named-preset development

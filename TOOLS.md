@@ -30,7 +30,7 @@ Statement Store is an omni-node feature for validating, storing, and gossiping s
 - **RPC methods**: `statement_submit`, `statement_dump`, plus the topic/key query variants
 - **Local status in this template**: Enabled by default in the repo's local omni-node scripts
 
-The local scripts intentionally do not use `--dev` for omni-node. On the `polkadot-omni-node` release paired with `stable2512-3`, Statement Store RPCs are exposed when using the explicit local-authority flags (`--tmp --alice --force-authoring`) but not when using `--dev`.
+The local scripts use explicit local-authority flags (`--tmp --alice --force-authoring`) together with a locally generated relay-chain-backed chain spec, so Statement Store RPCs are available without syncing a public relay chain.
 
 The current template integration is active in all three local entry points:
 

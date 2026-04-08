@@ -115,6 +115,6 @@
     "tokenSymbol": "UNIT"
   },
   "protocolId": null,
-  "relay_chain": "paseo",
+  "relay_chain": "rococo-local",
   "telemetryEndpoints": null
 }

@@ -115,7 +115,7 @@ cargo run -p stack-cli -- chain statement-submit --file ./README.md --signer ali
 cargo run -p stack-cli -- chain statement-dump
 ```
 
-The local dev scripts start `polkadot-omni-node` with Statement Store enabled by default, so omni-node's `statement_*` RPC methods are available on the same RPC port (`9944`). They intentionally avoid `--dev`, because this omni-node release does not expose the Statement Store RPCs in `--dev` mode.
+The local dev scripts start `polkadot-omni-node` with Statement Store enabled by default, so omni-node's `statement_*` RPC methods are available on the same RPC port (`9944`). They also generate a chain spec with a local relay chain, so local development does not need to sync Paseo.
 
 The frontend keeps `deployments.json` and `web/src/config/deployments.ts` as checked-in stubs. Deploy scripts update both files automatically after a successful contract deployment.
 
