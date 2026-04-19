@@ -1,0 +1,201 @@
+import { type Address, type WalletClient } from "viem";
+import { dotTransferAbi, getPublicClient } from "../config/evm";
+
+export type TransferRecord = {
+	cids: string;
+	uploader: string;
+	expiresAt: bigint;
+	fileSize: bigint;
+	fileName: string;
+	chunkCount: bigint;
+	expired: boolean;
+	revoked: boolean;
+};
+
+export type UploaderTransfer = {
+	transferId: `0x${string}`;
+	slug: string;
+	record: TransferRecord;
+};
+
+const SLUG_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789";
+const SLUG_LENGTH = 7;
+
+/** Generate a random 7-character alphanumeric slug [a-z0-9]. */
+export function generateSlug(): string {
+	const buf = new Uint8Array(SLUG_LENGTH);
+	crypto.getRandomValues(buf);
+	return Array.from(buf, (b) => SLUG_CHARS[b % SLUG_CHARS.length]).join("");
+}
+
+/** Encode a slug as a left-aligned bytes32 hex string (unused bytes are 0x00). */
+export function slugToBytes32(slug: string): `0x${string}` {
+	const bytes = new Uint8Array(32);
+	for (let i = 0; i < slug.length && i < 32; i++) {
+		bytes[i] = slug.charCodeAt(i);
+	}
+	return `0x${Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("")}` as `0x${string}`;
+}
+
+/** Decode a left-aligned bytes32 back into a slug string. */
+export function bytes32ToSlug(bytes32: `0x${string}`): string {
+	const hex = bytes32.slice(2);
+	let slug = "";
+	for (let i = 0; i < hex.length; i += 2) {
+		const charCode = parseInt(hex.slice(i, i + 2), 16);
+		if (charCode === 0) break;
+		slug += String.fromCharCode(charCode);
+	}
+	return slug;
+}
+
+/**
+ * Write a new transfer record to the DotTransfer contract.
+ * Accepts a viem WalletClient so callers can use either an injected wallet
+ * (MetaMask/SubWallet) or a dev-account client from getWalletClient().
+ */
+export async function createTransferRecord(
+	contractAddress: string,
+	slug: string,
+	params: {
+		cids: string;
+		expiresAt: number;
+		fileSize: number;
+		fileName: string;
+		chunkCount: number;
+	},
+	walletClient: WalletClient,
+	ethRpcUrl: string,
+): Promise<void> {
+	const addr = contractAddress as Address;
+	const publicClient = getPublicClient(ethRpcUrl);
+
+	const txHash = await walletClient.writeContract({
+		address: addr,
+		abi: dotTransferAbi,
+		functionName: "createTransfer",
+		args: [
+			slugToBytes32(slug),
+			params.cids,
+			BigInt(params.expiresAt),
+			BigInt(params.fileSize),
+			params.fileName,
+			BigInt(params.chunkCount),
+		],
+		account: walletClient.account ?? null,
+		chain: walletClient.chain ?? null,
+	});
+
+	await publicClient.waitForTransactionReceipt({ hash: txHash });
+}
+
+/**
+ * Revoke a transfer. Only the original uploader can call this.
+ * Marks the transfer as permanently inaccessible in the contract.
+ */
+export async function revokeTransfer(
+	contractAddress: string,
+	slug: string,
+	walletClient: WalletClient,
+	ethRpcUrl: string,
+): Promise<void> {
+	const addr = contractAddress as Address;
+	const publicClient = getPublicClient(ethRpcUrl);
+
+	const txHash = await walletClient.writeContract({
+		address: addr,
+		abi: dotTransferAbi,
+		functionName: "revokeTransfer",
+		args: [slugToBytes32(slug)],
+		account: walletClient.account ?? null,
+		chain: walletClient.chain ?? null,
+	});
+
+	await publicClient.waitForTransactionReceipt({ hash: txHash });
+}
+
+/**
+ * Read a transfer record from the DotTransfer contract by slug.
+ */
+export async function getTransferRecord(
+	contractAddress: string,
+	slug: string,
+	ethRpcUrl: string,
+): Promise<TransferRecord> {
+	const publicClient = getPublicClient(ethRpcUrl);
+	const result = await publicClient.readContract({
+		address: contractAddress as Address,
+		abi: dotTransferAbi,
+		functionName: "getTransfer",
+		args: [slugToBytes32(slug)],
+	});
+
+	return {
+		cids: result[0],
+		uploader: result[1],
+		expiresAt: result[2],
+		fileSize: result[3],
+		fileName: result[4],
+		chunkCount: result[5],
+		expired: result[6],
+		revoked: result[7],
+	};
+}
+
+/**
+ * Fetch all transfers created by a given uploader address.
+ * Makes one call to get the bytes32 IDs, then batches getTransfer calls.
+ */
+export async function getTransfersByUploader(
+	contractAddress: string,
+	uploaderAddress: string,
+	ethRpcUrl: string,
+): Promise<UploaderTransfer[]> {
+	const publicClient = getPublicClient(ethRpcUrl);
+	const addr = contractAddress as Address;
+
+	const transferIds = await publicClient.readContract({
+		address: addr,
+		abi: dotTransferAbi,
+		functionName: "getTransfersByUploader",
+		args: [uploaderAddress as Address],
+	});
+
+	const results = await Promise.all(
+		(transferIds as readonly `0x${string}`[]).map(async (transferId) => {
+			const result = await publicClient.readContract({
+				address: addr,
+				abi: dotTransferAbi,
+				functionName: "getTransfer",
+				args: [transferId],
+			});
+			const record: TransferRecord = {
+				cids: result[0],
+				uploader: result[1],
+				expiresAt: result[2],
+				fileSize: result[3],
+				fileName: result[4],
+				chunkCount: result[5],
+				expired: result[6],
+				revoked: result[7],
+			};
+			return { transferId, slug: bytes32ToSlug(transferId), record };
+		}),
+	);
+
+	return results.reverse(); // newest first
+}
+
+/** Check that a contract is deployed at the given address. */
+export async function checkContractDeployed(
+	contractAddress: string,
+	ethRpcUrl: string,
+): Promise<boolean> {
+	try {
+		const publicClient = getPublicClient(ethRpcUrl);
+		const code = await publicClient.getCode({ address: contractAddress as Address });
+		return Boolean(code && code !== "0x");
+	} catch {
+		return false;
+	}
+}

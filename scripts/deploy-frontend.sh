@@ -13,7 +13,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Domain to deploy to — flag > env var > default
-DOMAIN="${DOMAIN:-polkadot-stack-template00.dot}"
+DOMAIN="${DOMAIN:-stardot-fechame.dot}"
 
 echo "=== Deploy Frontend to Bulletin Chain ==="
 echo "  Domain: $DOMAIN"
@@ -50,7 +50,7 @@ fi
 echo "[1/2] Building frontend..."
 cd "$ROOT_DIR/web"
 npm install --silent
-npm run build
+VITE_APP_URL="https://${DOMAIN}.li" npm run build
 echo "  Build output: web/dist/"
 echo ""
 

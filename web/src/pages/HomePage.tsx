@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { useChainStore } from "../store/chainStore";
 import { useConnection } from "../hooks/useConnection";
 import { getClient } from "../hooks/useChain";
@@ -10,7 +11,7 @@ import {
 } from "../config/network";
 
 export default function HomePage() {
-	const { wsUrl, ethRpcUrl, setEthRpcUrl, connected, blockNumber, pallets } = useChainStore();
+	const { wsUrl, ethRpcUrl, setEthRpcUrl, connected, blockNumber } = useChainStore();
 	const { connect } = useConnection();
 	const [urlInput, setUrlInput] = useState(wsUrl);
 	const [ethRpcInput, setEthRpcInput] = useState(ethRpcUrl);
@@ -27,10 +28,7 @@ export default function HomePage() {
 	}, [ethRpcUrl]);
 
 	useEffect(() => {
-		if (!connected) {
-			return;
-		}
-
+		if (!connected) return;
 		getClient(wsUrl)
 			.getChainSpecData()
 			.then((data) => setChainName(data.name))
@@ -46,9 +44,8 @@ export default function HomePage() {
 			if (result?.ok && result.chain) {
 				setChainName(result.chain.name);
 			}
-		} catch (e) {
+		} catch {
 			setError(`Could not connect to ${urlInput}. Is the chain running?`);
-			console.error(e);
 		} finally {
 			setConnecting(false);
 		}
@@ -62,38 +59,101 @@ export default function HomePage() {
 	}
 
 	return (
-		<div className="space-y-8 animate-fade-in">
+		<div className="space-y-10 animate-fade-in">
 			{/* Hero */}
-			<div className="space-y-3">
-				<h1 className="page-title">
-					Polkadot Stack{" "}
-					<span className="bg-gradient-to-r from-polka-400 to-polka-600 bg-clip-text text-transparent">
-						Template
-					</span>
-				</h1>
-				<p className="text-text-secondary text-base leading-relaxed max-w-2xl">
-					A developer starter template demonstrating Proof of Existence implemented three
-					ways: as a Substrate pallet, a Solidity EVM contract, and a PVM contract. Drop a
-					file to claim its hash on-chain.
+			<div className="space-y-4 pt-2">
+				<div className="flex items-center gap-3">
+					<div className="w-10 h-10 rounded-xl bg-gradient-to-br from-polka-400 to-polka-700 flex items-center justify-center shadow-glow-lg">
+						<svg viewBox="0 0 16 16" className="w-5 h-5" fill="none">
+							<path d="M8 2 L8 14 M2 8 L14 8" stroke="white" strokeWidth="1.8" strokeLinecap="round" />
+							<circle cx="8" cy="8" r="2.5" fill="white" opacity="0.9" />
+						</svg>
+					</div>
+					<h1 className="page-title">
+						Star
+						<span className="bg-gradient-to-r from-polka-300 to-polka-500 bg-clip-text text-transparent">
+							Dot
+						</span>
+					</h1>
+				</div>
+				<p className="text-text-secondary text-base leading-relaxed max-w-xl">
+					Decentralized file sharing on Polkadot. Upload any file to the Bulletin Chain and
+					share it via a PVM smart contract link — no servers, no middlemen.
 				</p>
+				<Link
+					to="/transfer"
+					className="inline-flex items-center gap-2 btn-primary text-sm"
+				>
+					<svg viewBox="0 0 16 16" className="w-4 h-4" fill="none">
+						<path d="M8 2v9M4 7l4-5 4 5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+						<path d="M2 13h12" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+					</svg>
+					Send a file
+				</Link>
+			</div>
+
+			{/* How it works */}
+			<div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+				{[
+					{
+						icon: (
+							<path d="M8 2v9M4 7l4-5 4 5M2 13h12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+						),
+						title: "Upload",
+						desc: "Drop any file. It's chunked into 8 MiB pieces and stored on the Paseo Bulletin Chain via IPFS.",
+					},
+					{
+						icon: (
+							<>
+								<rect x="2" y="3" width="12" height="10" rx="2" stroke="currentColor" strokeWidth="1.5" />
+								<path d="M5 8h6M5 11h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+							</>
+						),
+						title: "Record",
+						desc: "A PVM smart contract on Paseo Asset Hub indexes the transfer — uploader, CIDs, expiry, and file name.",
+					},
+					{
+						icon: (
+							<>
+								<circle cx="5" cy="8" r="2" stroke="currentColor" strokeWidth="1.5" />
+								<circle cx="11" cy="4" r="2" stroke="currentColor" strokeWidth="1.5" />
+								<circle cx="11" cy="12" r="2" stroke="currentColor" strokeWidth="1.5" />
+								<path d="M7 7l2.5-2M7 9l2.5 2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+							</>
+						),
+						title: "Share",
+						desc: "Copy the generated link. Recipients download directly from IPFS — the contract proves authenticity.",
+					},
+				].map((step) => (
+					<div key={step.title} className="card space-y-3">
+						<div className="w-8 h-8 rounded-lg bg-polka-500/10 border border-polka-500/15 flex items-center justify-center">
+							<svg viewBox="0 0 16 16" className="w-4 h-4 text-polka-400" fill="none">
+								{step.icon}
+							</svg>
+						</div>
+						<h3 className="font-semibold text-text-primary font-display">{step.title}</h3>
+						<p className="text-sm text-text-secondary leading-relaxed">{step.desc}</p>
+					</div>
+				))}
 			</div>
 
 			{/* Connection card */}
 			<div className="card space-y-5">
+				<h2 className="section-title text-sm font-medium text-text-tertiary uppercase tracking-wider">
+					Network
+				</h2>
+
 				<div className="flex flex-wrap gap-2">
 					<button onClick={() => applyPreset("local")} className="btn-secondary text-xs">
-						Use Local Dev
+						Local Dev
 					</button>
-					<button
-						onClick={() => applyPreset("testnet")}
-						className="btn-secondary text-xs"
-					>
-						Use Hub TestNet
+					<button onClick={() => applyPreset("testnet")} className="btn-secondary text-xs">
+						Paseo TestNet
 					</button>
 				</div>
 
 				<div>
-					<label className="label">Substrate WebSocket Endpoint</label>
+					<label className="label">Substrate WebSocket</label>
 					<div className="flex gap-2">
 						<input
 							type="text"
@@ -103,18 +163,14 @@ export default function HomePage() {
 							placeholder={LOCAL_WS_URL}
 							className="input-field flex-1"
 						/>
-						<button
-							onClick={handleConnect}
-							disabled={connecting}
-							className="btn-primary"
-						>
-							{connecting ? "Connecting..." : "Connect"}
+						<button onClick={handleConnect} disabled={connecting} className="btn-primary">
+							{connecting ? "Connecting…" : "Connect"}
 						</button>
 					</div>
 				</div>
 
 				<div>
-					<label className="label">Ethereum JSON-RPC Endpoint</label>
+					<label className="label">Ethereum JSON-RPC</label>
 					<input
 						type="text"
 						value={ethRpcInput}
@@ -125,14 +181,12 @@ export default function HomePage() {
 						placeholder={LOCAL_ETH_RPC_URL}
 						className="input-field w-full"
 					/>
-					<p className="text-xs text-text-muted mt-2">
-						Used by the EVM and PVM contract pages.
-					</p>
+					<p className="text-xs text-text-muted mt-1.5">Used by the PVM contract calls.</p>
 				</div>
 
-				{/* Status grid */}
-				<div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-					<StatusItem label="Chain Status">
+				{/* Status row */}
+				<div className="grid grid-cols-3 gap-4 pt-1 border-t border-white/[0.04]">
+					<StatusItem label="Status">
 						{error ? (
 							<span className="text-accent-red text-sm">{error}</span>
 						) : connected ? (
@@ -141,49 +195,18 @@ export default function HomePage() {
 								Connected
 							</span>
 						) : connecting ? (
-							<span className="text-accent-yellow">Connecting...</span>
+							<span className="text-accent-yellow">Connecting…</span>
 						) : (
 							<span className="text-text-muted">Disconnected</span>
 						)}
 					</StatusItem>
-					<StatusItem label="Chain Name">
-						{chainName || <span className="text-text-muted">...</span>}
+					<StatusItem label="Chain">
+						{chainName || <span className="text-text-muted">—</span>}
 					</StatusItem>
-					<StatusItem label="Latest Block">
-						<span className="font-mono">#{blockNumber}</span>
+					<StatusItem label="Block">
+						<span className="font-mono">#{blockNumber || "—"}</span>
 					</StatusItem>
 				</div>
-			</div>
-
-			{/* Feature cards */}
-			<div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-				<FeatureCard
-					title="Pallet PoE"
-					description="Claim file hashes via the Substrate FRAME pallet using PAPI."
-					link="/pallet"
-					accentColor="text-accent-blue"
-					borderColor="hover:border-accent-blue/20"
-					available={pallets.templatePallet}
-					unavailableReason="TemplatePallet not found in connected runtime"
-				/>
-				<FeatureCard
-					title="EVM PoE (solc)"
-					description="Same proof of existence via Solidity compiled with solc, deployed to the EVM backend."
-					link="/evm"
-					accentColor="text-accent-purple"
-					borderColor="hover:border-accent-purple/20"
-					available={pallets.revive}
-					unavailableReason="pallet-revive not found in connected runtime"
-				/>
-				<FeatureCard
-					title="PVM PoE (resolc)"
-					description="Same Solidity contract compiled with resolc to PolkaVM bytecode, deployed via pallet-revive."
-					link="/pvm"
-					accentColor="text-accent-green"
-					borderColor="hover:border-accent-green/20"
-					available={pallets.revive}
-					unavailableReason="pallet-revive not found in connected runtime"
-				/>
 			</div>
 		</div>
 	);
@@ -195,50 +218,7 @@ function StatusItem({ label, children }: { label: string; children: React.ReactN
 			<h3 className="text-xs font-medium text-text-tertiary uppercase tracking-wider mb-1">
 				{label}
 			</h3>
-			<p className="text-lg font-semibold text-text-primary">{children}</p>
+			<p className="text-base font-semibold text-text-primary">{children}</p>
 		</div>
-	);
-}
-
-function FeatureCard({
-	title,
-	description,
-	link,
-	accentColor,
-	borderColor,
-	available,
-	unavailableReason,
-}: {
-	title: string;
-	description: string;
-	link: string;
-	accentColor: string;
-	borderColor: string;
-	available: boolean | null;
-	unavailableReason: string;
-}) {
-	if (available !== true) {
-		return (
-			<div className="card opacity-40">
-				<h3 className="text-lg font-semibold mb-2 text-text-muted font-display">{title}</h3>
-				<p className="text-sm text-text-muted">{description}</p>
-				<p className="text-xs mt-3">
-					{available === null ? (
-						<span className="text-accent-yellow">Detecting...</span>
-					) : (
-						<span className="text-accent-red">{unavailableReason}</span>
-					)}
-				</p>
-			</div>
-		);
-	}
-
-	return (
-		<a href={`#${link}`} className={`card-hover block group ${borderColor}`}>
-			<h3 className={`text-lg font-semibold mb-2 font-display ${accentColor}`}>{title}</h3>
-			<p className="text-sm text-text-secondary group-hover:text-text-primary transition-colors">
-				{description}
-			</p>
-		</a>
 	);
 }

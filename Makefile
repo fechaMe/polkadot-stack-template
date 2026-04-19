@@ -1,7 +1,6 @@
 SHELL := /bin/bash
 
 ROOT_DIR := $(shell pwd)
-EVM_DIR  := $(ROOT_DIR)/contracts/evm
 PVM_DIR  := $(ROOT_DIR)/contracts/pvm
 
 # Read PRIVATE_KEY/MNEMONIC from hardhat vars file if not set in environment.
@@ -21,19 +20,14 @@ export MNEMONIC
 # ─── Paseo deploy ─────────────────────────────────────────────────────────────
 
 .PHONY: deploy-paseo
-deploy-paseo: check-key deploy-paseo-evm deploy-paseo-pvm
+deploy-paseo: check-key deploy-paseo-pvm
 	@echo ""
 	@echo "=== Paseo deployment complete ==="
 	@cat $(ROOT_DIR)/deployments.json
 
-.PHONY: deploy-paseo-evm
-deploy-paseo-evm:
-	@echo "[1/2] Deploying ProofOfExistence (EVM)..."
-	@cd $(EVM_DIR) && npm install --silent && npx hardhat compile --quiet && npx hardhat run scripts/deploy.ts --network polkadotTestnet
-
 .PHONY: deploy-paseo-pvm
 deploy-paseo-pvm:
-	@echo "[2/2] Deploying ProofOfExistence (PVM)..."
+	@echo "Deploying ProofOfExistence (PVM)..."
 	@cd $(PVM_DIR) && npm install --silent && npx hardhat compile --quiet && npx hardhat run scripts/deploy.ts --network polkadotTestnet
 
 # ─── Frontend deploy ──────────────────────────────────────────────────────────
@@ -81,7 +75,7 @@ check-ipfs:
 check-key:
 	@if [ -z "$(PRIVATE_KEY)" ]; then \
 		echo "ERROR: PRIVATE_KEY not set."; \
-		echo "Run: cd contracts/evm && npx hardhat vars set PRIVATE_KEY"; \
+		echo "Run: cd contracts/pvm && npx hardhat vars set PRIVATE_KEY"; \
 		echo "Or:  export PRIVATE_KEY=0x..."; \
 		exit 1; \
 	fi

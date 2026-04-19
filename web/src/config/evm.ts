@@ -2,48 +2,6 @@ import { createPublicClient, createWalletClient, http, defineChain, type Chain }
 import { privateKeyToAccount } from "viem/accounts";
 import { getStoredEthRpcUrl } from "./network";
 
-// ProofOfExistence contract ABI — same for both EVM (solc) and PVM (resolc) deployments
-export const proofOfExistenceAbi = [
-	{
-		type: "function",
-		name: "createClaim",
-		inputs: [{ name: "documentHash", type: "bytes32" }],
-		outputs: [],
-		stateMutability: "nonpayable",
-	},
-	{
-		type: "function",
-		name: "revokeClaim",
-		inputs: [{ name: "documentHash", type: "bytes32" }],
-		outputs: [],
-		stateMutability: "nonpayable",
-	},
-	{
-		type: "function",
-		name: "getClaim",
-		inputs: [{ name: "documentHash", type: "bytes32" }],
-		outputs: [
-			{ name: "owner", type: "address" },
-			{ name: "blockNumber", type: "uint256" },
-		],
-		stateMutability: "view",
-	},
-	{
-		type: "function",
-		name: "getClaimCount",
-		inputs: [],
-		outputs: [{ name: "", type: "uint256" }],
-		stateMutability: "view",
-	},
-	{
-		type: "function",
-		name: "getClaimHashAtIndex",
-		inputs: [{ name: "index", type: "uint256" }],
-		outputs: [{ name: "", type: "bytes32" }],
-		stateMutability: "view",
-	},
-] as const;
-
 // Well-known Substrate dev account Ethereum private keys.
 // These are PUBLIC test keys from Substrate dev mnemonics — NEVER use for real funds.
 export const evmDevAccounts = [
@@ -66,6 +24,74 @@ export const evmDevAccounts = [
 		),
 	},
 ];
+
+// DotTransfer contract ABI — WeTransfer-style file sharing via Bulletin Chain IPFS.
+// TransferIDs are client-generated random bytes32 slugs (7 ASCII chars, left-aligned).
+export const dotTransferAbi = [
+	{
+		type: "function",
+		name: "createTransfer",
+		inputs: [
+			{ name: "transferId", type: "bytes32" },
+			{ name: "cids", type: "string" },
+			{ name: "expiresAt", type: "uint256" },
+			{ name: "fileSize", type: "uint256" },
+			{ name: "fileName", type: "string" },
+			{ name: "chunkCount", type: "uint256" },
+		],
+		outputs: [],
+		stateMutability: "nonpayable",
+	},
+	{
+		type: "function",
+		name: "revokeTransfer",
+		inputs: [{ name: "transferId", type: "bytes32" }],
+		outputs: [],
+		stateMutability: "nonpayable",
+	},
+	{
+		type: "function",
+		name: "getTransfer",
+		inputs: [{ name: "transferId", type: "bytes32" }],
+		outputs: [
+			{ name: "cids", type: "string" },
+			{ name: "uploader", type: "address" },
+			{ name: "expiresAt", type: "uint256" },
+			{ name: "fileSize", type: "uint256" },
+			{ name: "fileName", type: "string" },
+			{ name: "chunkCount", type: "uint256" },
+			{ name: "expired", type: "bool" },
+			{ name: "revoked", type: "bool" },
+		],
+		stateMutability: "view",
+	},
+	{
+		type: "function",
+		name: "getTransfersByUploader",
+		inputs: [{ name: "uploader", type: "address" }],
+		outputs: [{ name: "", type: "bytes32[]" }],
+		stateMutability: "view",
+	},
+	{
+		type: "event",
+		name: "TransferCreated",
+		inputs: [
+			{ name: "transferId", type: "bytes32", indexed: true },
+			{ name: "uploader", type: "address", indexed: true },
+			{ name: "expiresAt", type: "uint256", indexed: false },
+			{ name: "fileName", type: "string", indexed: false },
+			{ name: "fileSize", type: "uint256", indexed: false },
+		],
+	},
+	{
+		type: "event",
+		name: "TransferRevoked",
+		inputs: [
+			{ name: "transferId", type: "bytes32", indexed: true },
+			{ name: "uploader", type: "address", indexed: true },
+		],
+	},
+] as const;
 
 let publicClient: ReturnType<typeof createPublicClient> | null = null;
 let publicClientUrl: string | null = null;

@@ -1,0 +1,6 @@
+Network ID:        substrate
+  Secret seed:       0xc9f4fe06776047a655309fc207812c8f069b82a89ef87b157926f95001ba3afe
+  Public key (hex):  0x0e9e8177f5607f876b21b59cfc9cb4c4b9191f999b6f718eff471299907bc11f
+  Account ID:        0x0e9e8177f5607f876b21b59cfc9cb4c4b9191f999b6f718eff471299907bc11f
+  Public key (SS58): 5CPscYMWF4nbYY6PKoxJsM1DBNznzgFJCZLRUXq5fvDGspBB
+  SS58 Address:      5CPscYMWF4nbYY6PKoxJsM1DBNznzgFJCZLRUXq5fvDGspBB
