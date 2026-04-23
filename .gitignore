@@ -24,6 +24,10 @@ dist.car
 .DS_Store
 Thumbs.db
 
+# misc
+*.txt
+*.png
+
 # Chain data
 chain_data/
 /data/
