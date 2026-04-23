@@ -77,7 +77,7 @@ ${tsLines}
 async function main() {
 	if (!fs.existsSync(POLKAVM_BLOB)) {
 		throw new Error(
-			`Compiled artifact not found: ${POLKAVM_BLOB}\nRun: cd contracts/pvm && cargo build --release`,
+			`Compiled artifact not found: ${POLKAVM_BLOB}\nRun: cd contracts/pvm-rust && cargo build --release`,
 		);
 	}
 

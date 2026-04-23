@@ -82,8 +82,15 @@ export default function DownloadPage() {
 	async function handleDownload() {
 		if (!transfer) return;
 		const { cidList } = parseCids(transfer.cids);
-		setDlState({ type: "fetching", fetched: 0, total: cidList.length });
 
+		// Single-chunk: open IPFS link directly in new tab
+		if (cidList.length === 1) {
+			window.open(`${IPFS_BASE}/${cidList[0]}`, "_blank");
+			return;
+		}
+
+		// Multi-chunk: fetch and reassemble, then open blob URL
+		setDlState({ type: "fetching", fetched: 0, total: cidList.length });
 		try {
 			const buffer = await fetchTransferFromIpfs(transfer.cids, (fetched, total) => {
 				setDlState({ type: "fetching", fetched, total });
@@ -92,24 +99,15 @@ export default function DownloadPage() {
 			const blob = new Blob([buffer], { type: "application/octet-stream" });
 			const blobUrl = URL.createObjectURL(blob);
 			setDlState({ type: "done", blobUrl, fileName });
-			// Open in new tab — download attribute is blocked in sandboxed frames
 			window.open(blobUrl, "_blank");
 		} catch (err) {
-			// CORS or gateway error — offer direct IPFS links as fallback
 			const msg = err instanceof Error ? err.message : String(err);
 			const isCors =
 				msg.toLowerCase().includes("cors") ||
 				msg.toLowerCase().includes("failed to fetch") ||
 				msg.toLowerCase().includes("networkerror");
-
-			if (isCors || cidList.length === 1) {
-				// For single-chunk files the browser can open the URL directly
-				if (cidList.length === 1) {
-					window.open(`${IPFS_BASE}/${cidList[0]}`, "_blank");
-					setDlState({ type: "idle" });
-				} else {
-					setDlState({ type: "cors_fallback", cidList });
-				}
+			if (isCors) {
+				setDlState({ type: "cors_fallback", cidList });
 			} else {
 				setDlState({ type: "error", message: msg });
 			}
@@ -193,6 +191,11 @@ export default function DownloadPage() {
 								{transfer.fileName || `transfer-${id}`}
 							</p>
 							<p className="text-text-muted text-sm">{formatSize(transfer.fileSize)}</p>
+							{transfer.description && (
+								<p className="text-text-secondary text-sm mt-1 italic">
+									{transfer.description}
+								</p>
+							)}
 						</div>
 					</div>
 
@@ -207,28 +210,6 @@ export default function DownloadPage() {
 								{isRevoked ? "Revoked" : formatTimeLeft(transfer.expiresAt)}
 							</p>
 						</div>
-					</div>
-
-					{/* CID(s) */}
-					<div>
-						<p className="label mb-1">
-							IPFS CID{transfer.chunkCount > 1n ? "s" : ""}
-						</p>
-						{parseCids(transfer.cids).cidList.map((cid, i) => (
-							<div key={i} className="flex items-center gap-2 mb-1">
-								{transfer.chunkCount > 1n && (
-									<span className="text-text-muted text-xs w-4 shrink-0">{i + 1}.</span>
-								)}
-								<a
-									href={`${IPFS_BASE}/${cid}`}
-									target="_blank"
-									rel="noopener noreferrer"
-									className="font-mono text-xs text-accent-blue hover:underline break-all"
-								>
-									{cid}
-								</a>
-							</div>
-						))}
 					</div>
 
 					{/* Download controls */}
@@ -290,7 +271,7 @@ export default function DownloadPage() {
 					{dlState.type === "cors_fallback" && (
 						<div className="space-y-3">
 							<p className="text-sm text-accent-yellow">
-								Direct fetch blocked by CORS — open each chunk manually:
+								Direct fetch blocked by CORS — open each part manually:
 							</p>
 							{dlState.cidList.map((cid, i) => (
 								<a
@@ -303,7 +284,7 @@ export default function DownloadPage() {
 									<svg viewBox="0 0 16 16" className="w-3.5 h-3.5 shrink-0" fill="none">
 										<path d="M8 1v10M4 7l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
 									</svg>
-									Chunk {i + 1} — {cid.slice(0, 20)}…
+									Part {i + 1} of {dlState.cidList.length}
 								</a>
 							))}
 						</div>

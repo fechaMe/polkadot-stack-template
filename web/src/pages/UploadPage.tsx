@@ -62,6 +62,7 @@ export default function UploadPage() {
 	const [file, setFile] = useState<File | null>(null);
 	const [dragging, setDragging] = useState(false);
 	const [expiryHours, setExpiryHours] = useState(24);
+	const [description, setDescription] = useState("");
 	const [bulletinAccountIndex, setBulletinAccountIndex] = useState(0);
 	const [step, setStep] = useState<UploadStep>({ type: "idle" });
 
@@ -134,6 +135,7 @@ export default function UploadPage() {
 					fileSize: file.size,
 					fileName: file.name,
 					chunkCount: uploadResult.chunkCount,
+					description: description.trim(),
 				},
 				walletClient,
 				ethRpcUrl,
@@ -215,6 +217,20 @@ export default function UploadPage() {
 					<p className="mt-1 text-xs text-text-muted">
 						Bulletin Chain data auto-drops after ~14 days regardless of this setting.
 					</p>
+				</div>
+
+				{/* Description */}
+				<div>
+					<label className="label">Description (optional)</label>
+					<input
+						type="text"
+						value={description}
+						onChange={(e) => setDescription(e.target.value)}
+						placeholder="Add a note for the recipient…"
+						maxLength={280}
+						className="input-field w-full"
+						disabled={isWorking}
+					/>
 				</div>
 
 				{/* Drop zone */}
@@ -346,6 +362,7 @@ export default function UploadPage() {
 						<button
 							onClick={() => {
 								setFile(null);
+								setDescription("");
 								setStep({ type: "idle" });
 							}}
 							className="btn-secondary flex-1 text-sm"

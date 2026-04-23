@@ -1,5 +1,5 @@
 import { type Address, type WalletClient } from "viem";
-import { dotTransferAbi, getPublicClient } from "../config/evm";
+import { dotTransferAbi, getPublicClient, getTxFees } from "../config/evm";
 
 export type TransferRecord = {
 	cids: string;
@@ -10,6 +10,7 @@ export type TransferRecord = {
 	chunkCount: bigint;
 	expired: boolean;
 	revoked: boolean;
+	description: string;
 };
 
 export type UploaderTransfer = {
@@ -63,12 +64,14 @@ export async function createTransferRecord(
 		fileSize: number;
 		fileName: string;
 		chunkCount: number;
+		description: string;
 	},
 	walletClient: WalletClient,
 	ethRpcUrl: string,
 ): Promise<void> {
 	const addr = contractAddress as Address;
 	const publicClient = getPublicClient(ethRpcUrl);
+	const fees = await getTxFees(ethRpcUrl);
 
 	const txHash = await walletClient.writeContract({
 		address: addr,
@@ -81,9 +84,39 @@ export async function createTransferRecord(
 			BigInt(params.fileSize),
 			params.fileName,
 			BigInt(params.chunkCount),
+			params.description,
 		],
 		account: walletClient.account ?? null,
 		chain: walletClient.chain ?? null,
+		...fees,
+	});
+
+	await publicClient.waitForTransactionReceipt({ hash: txHash });
+}
+
+/**
+ * Extend the expiry of a transfer. Only the original uploader can call this.
+ * newExpiresAt must be strictly after the current expiresAt.
+ */
+export async function extendExpiry(
+	contractAddress: string,
+	slug: string,
+	newExpiresAt: number,
+	walletClient: WalletClient,
+	ethRpcUrl: string,
+): Promise<void> {
+	const addr = contractAddress as Address;
+	const publicClient = getPublicClient(ethRpcUrl);
+	const fees = await getTxFees(ethRpcUrl);
+
+	const txHash = await walletClient.writeContract({
+		address: addr,
+		abi: dotTransferAbi,
+		functionName: "extendExpiry",
+		args: [slugToBytes32(slug), BigInt(newExpiresAt)],
+		account: walletClient.account ?? null,
+		chain: walletClient.chain ?? null,
+		...fees,
 	});
 
 	await publicClient.waitForTransactionReceipt({ hash: txHash });
@@ -101,6 +134,7 @@ export async function revokeTransfer(
 ): Promise<void> {
 	const addr = contractAddress as Address;
 	const publicClient = getPublicClient(ethRpcUrl);
+	const fees = await getTxFees(ethRpcUrl);
 
 	const txHash = await walletClient.writeContract({
 		address: addr,
@@ -109,6 +143,7 @@ export async function revokeTransfer(
 		args: [slugToBytes32(slug)],
 		account: walletClient.account ?? null,
 		chain: walletClient.chain ?? null,
+		...fees,
 	});
 
 	await publicClient.waitForTransactionReceipt({ hash: txHash });
@@ -130,15 +165,19 @@ export async function getTransferRecord(
 		args: [slugToBytes32(slug)],
 	});
 
+	const expiresAt = result[2] as bigint;
 	return {
 		cids: result[0],
 		uploader: result[1],
-		expiresAt: result[2],
+		expiresAt,
 		fileSize: result[3],
 		fileName: result[4],
 		chunkCount: result[5],
-		expired: result[6],
+		// Use wall clock rather than the contract's block.timestamp boolean.
+		// The chain clock can lag, causing false negatives that render negative diffs.
+		expired: BigInt(Math.floor(Date.now() / 1000)) >= expiresAt,
 		revoked: result[7],
+		description: result[8] ?? "",
 	};
 }
 
@@ -169,15 +208,17 @@ export async function getTransfersByUploader(
 				functionName: "getTransfer",
 				args: [transferId],
 			});
+			const expiresAt = result[2] as bigint;
 			const record: TransferRecord = {
 				cids: result[0],
 				uploader: result[1],
-				expiresAt: result[2],
+				expiresAt,
 				fileSize: result[3],
 				fileName: result[4],
 				chunkCount: result[5],
-				expired: result[6],
+				expired: BigInt(Math.floor(Date.now() / 1000)) >= expiresAt,
 				revoked: result[7],
+				description: result[8] ?? "",
 			};
 			return { transferId, slug: bytes32ToSlug(transferId), record };
 		}),

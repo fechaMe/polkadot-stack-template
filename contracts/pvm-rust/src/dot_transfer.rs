@@ -18,6 +18,7 @@ mod dot_transfer {
     const SLOT_CIDS: u8 = 5;
     const SLOT_FILENAME: u8 = 6;
     const SLOT_LIST_LEN: u8 = 7;
+    const SLOT_DESCRIPTION: u8 = 8;
 
     pub enum Error {
         NotFound,
@@ -28,6 +29,7 @@ mod dot_transfer {
         FileSizeZero,
         EmptyCids,
         ChunkCountZero,
+        ExpiryNotExtended,
     }
 
     impl AsRef<[u8]> for Error {
@@ -41,6 +43,7 @@ mod dot_transfer {
                 Error::FileSizeZero => b"FileSizeZero",
                 Error::EmptyCids => b"EmptyCids",
                 Error::ChunkCountZero => b"ChunkCountZero",
+                Error::ExpiryNotExtended => b"ExpiryNotExtended",
             }
         }
     }
@@ -143,6 +146,21 @@ mod dot_transfer {
 
     // Strings are stored as: base_key → length (u32 in bytes [28..32]),
     // string_chunk_key(base, i) → 32-byte chunk i of the UTF-8 bytes.
+
+    fn clear_string(base: &[u8; 32]) {
+        let len_buf = read32(base);
+        let mut arr = [0u8; 4];
+        arr.copy_from_slice(&len_buf[28..32]);
+        let len = u32::from_be_bytes(arr) as usize;
+        let zero = [0u8; 32];
+        let chunks = (len + 31) / 32;
+        for i in 0..chunks {
+            let ck = string_chunk_key(base, i as u32);
+            write32(&ck, &zero);
+        }
+        write32(base, &zero);
+    }
+
     fn write_string(base: &[u8; 32], s: &str) {
         let bytes = s.as_bytes();
         let len = bytes.len() as u32;
@@ -229,6 +247,7 @@ mod dot_transfer {
         file_size: U256,
         file_name: String,
         chunk_count: U256,
+        description: String,
     ) -> Result<(), Error> {
         if !is_zero(&read_addr(&transfer_field_key(&transfer_id, SLOT_UPLOADER))) {
             return Err(Error::AlreadyTaken);
@@ -254,6 +273,7 @@ mod dot_transfer {
         write_bool(&transfer_field_key(&transfer_id, SLOT_REVOKED), false);
         write_string(&transfer_field_key(&transfer_id, SLOT_CIDS), &cids);
         write_string(&transfer_field_key(&transfer_id, SLOT_FILENAME), &file_name);
+        write_string(&transfer_field_key(&transfer_id, SLOT_DESCRIPTION), &description);
 
         let lk = uploader_meta_key(&sender.0, SLOT_LIST_LEN);
         let len = read_u64(&lk);
@@ -286,6 +306,7 @@ mod dot_transfer {
             return Err(Error::AlreadyRevoked);
         }
         write_bool(&rk, true);
+        clear_string(&transfer_field_key(&transfer_id, SLOT_CIDS));
 
         let topic0 = keccak256(b"TransferRevoked(bytes32,address)");
         let mut topic2 = [0u8; 32];
@@ -298,7 +319,7 @@ mod dot_transfer {
     #[pvm_contract_macros::method]
     pub fn get_transfer(
         transfer_id: [u8; 32],
-    ) -> Result<(String, Address, U256, U256, String, U256, bool, bool), Error> {
+    ) -> Result<(String, Address, U256, U256, String, U256, bool, bool, String), Error> {
         let uploader = read_addr(&transfer_field_key(&transfer_id, SLOT_UPLOADER));
         if is_zero(&uploader) {
             return Err(Error::NotFound);
@@ -307,11 +328,43 @@ mod dot_transfer {
         let file_size = read_u256(&transfer_field_key(&transfer_id, SLOT_FILE_SIZE));
         let chunk_count = read_u256(&transfer_field_key(&transfer_id, SLOT_CHUNK_COUNT));
         let revoked = read_bool(&transfer_field_key(&transfer_id, SLOT_REVOKED));
-        let cids = read_string(&transfer_field_key(&transfer_id, SLOT_CIDS));
-        let file_name = read_string(&transfer_field_key(&transfer_id, SLOT_FILENAME));
         let expired = get_timestamp() >= expires_at;
+        let cids = if revoked || expired {
+            String::new()
+        } else {
+            read_string(&transfer_field_key(&transfer_id, SLOT_CIDS))
+        };
+        let file_name = read_string(&transfer_field_key(&transfer_id, SLOT_FILENAME));
+        let description = read_string(&transfer_field_key(&transfer_id, SLOT_DESCRIPTION));
 
-        Ok((cids, uploader, expires_at, file_size, file_name, chunk_count, expired, revoked))
+        Ok((cids, uploader, expires_at, file_size, file_name, chunk_count, expired, revoked, description))
+    }
+
+    #[pvm_contract_macros::method]
+    pub fn extend_expiry(transfer_id: [u8; 32], new_expires_at: U256) -> Result<(), Error> {
+        let uploader = read_addr(&transfer_field_key(&transfer_id, SLOT_UPLOADER));
+        if is_zero(&uploader) {
+            return Err(Error::NotFound);
+        }
+        let sender = get_caller();
+        if uploader != sender {
+            return Err(Error::NotUploader);
+        }
+        if read_bool(&transfer_field_key(&transfer_id, SLOT_REVOKED)) {
+            return Err(Error::AlreadyRevoked);
+        }
+        let current = read_u256(&transfer_field_key(&transfer_id, SLOT_EXPIRES_AT));
+        if new_expires_at <= current {
+            return Err(Error::ExpiryNotExtended);
+        }
+        write_u256(&transfer_field_key(&transfer_id, SLOT_EXPIRES_AT), new_expires_at);
+
+        let topic0 = keccak256(b"TransferExpiryExtended(bytes32,address,uint256)");
+        let mut topic2 = [0u8; 32];
+        topic2[12..32].copy_from_slice(&sender.0);
+        api::deposit_event(&[topic0, transfer_id, topic2], &new_expires_at.to_be_bytes::<32>());
+
+        Ok(())
     }
 
     #[pvm_contract_macros::method]

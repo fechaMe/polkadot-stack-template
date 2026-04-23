@@ -15,9 +15,9 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-# Build Rust PVM contract (uses contracts/pvm/.cargo/config.toml for the PolkaVM target)
+# Build Rust PVM contract (uses contracts/pvm-rust/.cargo/config.toml for the PolkaVM target)
 echo "[1/2] Building DotTransfer (Rust → PolkaVM)..."
-cd "$ROOT_DIR/contracts/pvm"
+cd "$ROOT_DIR/contracts/pvm-rust"
 cargo build --release
 echo "      Built: target/dot-transfer.release.polkavm"
 

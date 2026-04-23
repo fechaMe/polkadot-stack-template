@@ -38,6 +38,7 @@ export const dotTransferAbi = [
 			{ name: "fileSize", type: "uint256" },
 			{ name: "fileName", type: "string" },
 			{ name: "chunkCount", type: "uint256" },
+			{ name: "description", type: "string" },
 		],
 		outputs: [],
 		stateMutability: "nonpayable",
@@ -46,6 +47,16 @@ export const dotTransferAbi = [
 		type: "function",
 		name: "revokeTransfer",
 		inputs: [{ name: "transferId", type: "bytes32" }],
+		outputs: [],
+		stateMutability: "nonpayable",
+	},
+	{
+		type: "function",
+		name: "extendExpiry",
+		inputs: [
+			{ name: "transferId", type: "bytes32" },
+			{ name: "newExpiresAt", type: "uint256" },
+		],
 		outputs: [],
 		stateMutability: "nonpayable",
 	},
@@ -62,6 +73,7 @@ export const dotTransferAbi = [
 			{ name: "chunkCount", type: "uint256" },
 			{ name: "expired", type: "bool" },
 			{ name: "revoked", type: "bool" },
+			{ name: "description", type: "string" },
 		],
 		stateMutability: "view",
 	},
@@ -80,6 +92,7 @@ export const dotTransferAbi = [
 	{ type: "error", name: "FileSizeZero", inputs: [] },
 	{ type: "error", name: "EmptyCids", inputs: [] },
 	{ type: "error", name: "ChunkCountZero", inputs: [] },
+	{ type: "error", name: "ExpiryNotExtended", inputs: [] },
 	{
 		type: "event",
 		name: "TransferCreated",
@@ -97,6 +110,15 @@ export const dotTransferAbi = [
 		inputs: [
 			{ name: "transferId", type: "bytes32", indexed: true },
 			{ name: "uploader", type: "address", indexed: true },
+		],
+	},
+	{
+		type: "event",
+		name: "TransferExpiryExtended",
+		inputs: [
+			{ name: "transferId", type: "bytes32", indexed: true },
+			{ name: "uploader", type: "address", indexed: true },
+			{ name: "newExpiresAt", type: "uint256", indexed: false },
 		],
 	},
 ] as const;
@@ -142,4 +164,17 @@ export async function getWalletClient(accountIndex: number, ethRpcUrl = getStore
 		chain,
 		transport: http(ethRpcUrl),
 	});
+}
+
+/**
+ * pallet-revive maps the EIP-1559 tip to Substrate tx priority — a zero tip
+ * causes the tx pool to reject the transaction. Fetch the current gas price
+ * and return fee params that guarantee a non-zero tip.
+ */
+export async function getTxFees(ethRpcUrl = getStoredEthRpcUrl()) {
+	const gasPrice = await getPublicClient(ethRpcUrl).getGasPrice();
+	return {
+		maxFeePerGas: gasPrice * 2n,
+		maxPriorityFeePerGas: gasPrice,
+	};
 }

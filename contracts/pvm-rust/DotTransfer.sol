@@ -10,6 +10,11 @@ interface DotTransfer {
 		uint256 fileSize
 	);
 	event TransferRevoked(bytes32 indexed transferId, address indexed uploader);
+	event TransferExpiryExtended(
+		bytes32 indexed transferId,
+		address indexed uploader,
+		uint256 newExpiresAt
+	);
 
 	error NotFound();
 	error AlreadyTaken();
@@ -19,6 +24,7 @@ interface DotTransfer {
 	error FileSizeZero();
 	error EmptyCids();
 	error ChunkCountZero();
+	error ExpiryNotExtended();
 
 	function createTransfer(
 		bytes32 transferId,
@@ -26,10 +32,13 @@ interface DotTransfer {
 		uint256 expiresAt,
 		uint256 fileSize,
 		string calldata fileName,
-		uint256 chunkCount
+		uint256 chunkCount,
+		string calldata description
 	) external;
 
 	function revokeTransfer(bytes32 transferId) external;
+
+	function extendExpiry(bytes32 transferId, uint256 newExpiresAt) external;
 
 	function getTransfer(
 		bytes32 transferId
@@ -44,7 +53,8 @@ interface DotTransfer {
 			string memory fileName,
 			uint256 chunkCount,
 			bool expired,
-			bool revoked
+			bool revoked,
+			string memory description
 		);
 
 	function getTransfersByUploader(address uploader) external view returns (bytes32[] memory);
