@@ -32,8 +32,10 @@ function bytesToHex(bytes: Uint8Array): string {
  * chunk so that identical files always produce distinct CIDs.
  * If the last natural chunk is exactly MAX_CHUNK_SIZE, the overflow goes into
  * a new chunk so we never exceed the per-tx limit.
+ *
+ * Exported for unit testing only — not part of the public API.
  */
-function chunkBytesWithSalt(bytes: Uint8Array): { chunks: Uint8Array[]; salt: Uint8Array } {
+export function chunkBytesWithSalt(bytes: Uint8Array): { chunks: Uint8Array[]; salt: Uint8Array } {
 	const salt = new Uint8Array(SALT_SIZE);
 	crypto.getRandomValues(salt);
 

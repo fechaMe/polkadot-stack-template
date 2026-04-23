@@ -1,4 +1,4 @@
 [toolchain]
-channel = "stable"
+channel = "nightly-2026-02-01"
 targets = ["wasm32v1-none", "wasm32-unknown-unknown"]
 components = ["rust-src"]
