@@ -118,12 +118,16 @@ mod dot_transfer {
 
     // ── storage key helpers ───────────────────────────────────────────────────
 
+    /// Thin wrapper over the `hash_keccak_256` host function.
     fn keccak256(input: &[u8]) -> [u8; 32] {
         let mut out = [0u8; 32];
         api::hash_keccak_256(input, &mut out);
         out
     }
 
+    /// Derives the storage slot key for field `slot` of transfer `id`.
+    /// Input is `id ++ slot_tag` (33 bytes); the hash ensures no two (id, slot)
+    /// pairs collide and no transfer's keys overlap with another transfer's.
     fn transfer_field_key(id: &[u8; 32], slot: u8) -> [u8; 32] {
         let mut input = [0u8; 33];
         input[..32].copy_from_slice(id);
@@ -131,6 +135,8 @@ mod dot_transfer {
         keccak256(&input)
     }
 
+    /// Derives a per-uploader metadata slot key (currently used only for `SLOT_LIST_LEN`).
+    /// Input is `addr ++ slot_tag` (21 bytes).
     fn uploader_meta_key(addr: &[u8; 20], slot: u8) -> [u8; 32] {
         let mut input = [0u8; 21];
         input[..20].copy_from_slice(addr);
@@ -138,6 +144,8 @@ mod dot_transfer {
         keccak256(&input)
     }
 
+    /// Derives the storage key for entry `index` in `addr`'s transfer list.
+    /// The big-endian index is appended so entries can be read in O(1) without scanning.
     fn uploader_item_key(addr: &[u8; 20], index: u64) -> [u8; 32] {
         let mut input = [0u8; 29];
         input[..20].copy_from_slice(addr);
@@ -146,6 +154,7 @@ mod dot_transfer {
         keccak256(&input)
     }
 
+    /// Derives the storage key for the `chunk`-th 32-byte segment of a string stored at `base`.
     fn string_chunk_key(base: &[u8; 32], chunk: u32) -> [u8; 32] {
         let mut input = [0u8; 36];
         input[..32].copy_from_slice(base);
@@ -155,6 +164,7 @@ mod dot_transfer {
 
     // ── raw 32-byte slot r/w ─────────────────────────────────────────────────
 
+    /// Reads one 32-byte slot from persistent storage. Returns all zeros for unset keys.
     fn read32(key: &[u8; 32]) -> [u8; 32] {
         let mut buf = [0u8; 32];
         let mut out: &mut [u8] = &mut buf;
@@ -162,12 +172,15 @@ mod dot_transfer {
         buf
     }
 
+    /// Writes one 32-byte value to persistent storage.
     fn write32(key: &[u8; 32], val: &[u8; 32]) {
         api::set_storage(StorageFlags::empty(), key, val);
     }
 
     // ── typed r/w ────────────────────────────────────────────────────────────
+    // All scalar types are stored right-aligned in the 32-byte slot (EVM convention).
 
+    /// U256 stored big-endian, occupying the full 32 bytes.
     fn read_u256(key: &[u8; 32]) -> U256 {
         U256::from_be_bytes(read32(key))
     }
@@ -176,6 +189,7 @@ mod dot_transfer {
         write32(key, &val.to_be_bytes::<32>());
     }
 
+    /// Address stored right-aligned: bytes [0..12] = zero, bytes [12..32] = the 20-byte address.
     fn read_addr(key: &[u8; 32]) -> Address {
         let buf = read32(key);
         let mut inner = [0u8; 20];
@@ -189,6 +203,7 @@ mod dot_transfer {
         write32(key, &buf);
     }
 
+    /// Bool stored in the LSB of the slot (byte [31]).
     fn read_bool(key: &[u8; 32]) -> bool {
         read32(key)[31] != 0
     }
@@ -199,6 +214,7 @@ mod dot_transfer {
         write32(key, &buf);
     }
 
+    /// u64 stored right-aligned in bytes [24..32], big-endian.
     fn read_u64(key: &[u8; 32]) -> u64 {
         let buf = read32(key);
         let mut arr = [0u8; 8];
@@ -215,6 +231,9 @@ mod dot_transfer {
     // Strings are stored as: base_key → length (u32 in bytes [28..32]),
     // string_chunk_key(base, i) → 32-byte chunk i of the UTF-8 bytes.
 
+    /// Zeroes every chunk slot and the length header for the string at `base`.
+    /// Called on revoke so CIDs are erased from the trie, not just hidden at the API level —
+    /// raw `eth_getStorageAt` reads would otherwise still expose the data.
     fn clear_string(base: &[u8; 32]) {
         let len_buf = read32(base);
         let mut arr = [0u8; 4];
@@ -229,6 +248,8 @@ mod dot_transfer {
         write32(base, &zero);
     }
 
+    /// Writes `s` to storage: length as u32 in bytes [28..32] of `base`, then UTF-8 bytes
+    /// in sequential 32-byte chunk slots. Each chunk is zero-padded to 32 bytes.
     fn write_string(base: &[u8; 32], s: &str) {
         let bytes = s.as_bytes();
         let len = bytes.len() as u32;
@@ -246,6 +267,7 @@ mod dot_transfer {
         }
     }
 
+    /// Reads the length header from `base`, then reassembles UTF-8 bytes from chunk slots.
     fn read_string(base: &[u8; 32]) -> String {
         let len_buf = read32(base);
         let mut arr = [0u8; 4];
@@ -268,6 +290,7 @@ mod dot_transfer {
 
     // ── host function wrappers ────────────────────────────────────────────────
 
+    /// Returns the 20-byte Ethereum address of the transaction sender.
     fn get_caller() -> Address {
         let mut inner = [0u8; 20];
         api::caller(&mut inner);
@@ -282,6 +305,8 @@ mod dot_transfer {
         U256::from_le_bytes(buf) / U256::from(1000u64)
     }
 
+    /// Returns true if `addr` is the zero address — used to detect unwritten storage slots,
+    /// since `get_storage` returns all zeros for keys that have never been set.
     fn is_zero(addr: &Address) -> bool {
         addr.0 == [0u8; 20]
     }
