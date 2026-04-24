@@ -1,5 +1,7 @@
 # [StarDot](https://stardot-fechame.dot.li/)
 
+Deployed on dot.li: https://stardot-fechame.dot.li/
+
 A decentralised, temporary file-transfer dApp built on Polkadot (Rust `via cargo-pvm-contract` + PolkaVM + Vite). Upload a file, share a link, and revoke access at any time — with no backend, no accounts, and no intermediary holding the keys.
 
 File content is stored on the **Bulletin Chain** (Polkadot's permissioned public bulletin board / IPFS layer). The transfer record — metadata, expiry, and revocation status — lives inside a **native Rust smart contract** compiled to PolkaVM (RISC-V) bytecode and executed by `pallet-revive` on Polkadot Asset Hub.
@@ -272,14 +274,14 @@ cd web && npm run lint
 
 ## Limitations
 
-| Area | Detail |
-|---|---|
-| **N+1 trie reads** | `getTransfersByUploaderPage` returns IDs; the frontend then calls `getTransfer` per ID — ~180 Substrate trie traversals per page at `PAGE_SIZE=20`. Resolution: emit `TransferCreated` events and move batch reads to an off-chain indexer. |
-| **Events declared, not emitted** | `DotTransfer.sol` declares `TransferCreated/Revoked/ExpiryExtended` for ABI completeness. The Rust contract does not yet call `api::deposit_event`, which `pallet-revive-uapi` exposes and the riscv64 backend implements. |
-| **Expiry at the gate, not the store** | Expiry hides CIDs at the contract level; chunks persist on the Bulletin Chain indefinitely. Anyone who recorded CIDs before expiry can still fetch them from IPFS directly. |
-| **Bulletin Chain authorisation** | Uploads require the sender to be pre-authorised on the Bulletin Chain. Unauthorised attempts fail silently at the storage layer with no user-facing error. |
-| **No offline contract test harness** | No `pallet-revive` equivalent of `TestExternalities` exists yet. The Rust contract must be tested against a live local node after deployment. |
-| **File size ceiling** | CID list capped at `MAX_CIDS_LEN = 4096` bytes (~69 CIDv1 strings, ~550 MiB at 8 MiB chunks). Bulletin Chain per-statement limits may be hit before the frontend cap on very large files. |
+| Area                                  | Detail                                                                                                                                                                                                                                      |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **N+1 trie reads**                    | `getTransfersByUploaderPage` returns IDs; the frontend then calls `getTransfer` per ID — ~180 Substrate trie traversals per page at `PAGE_SIZE=20`. Resolution: emit `TransferCreated` events and move batch reads to an off-chain indexer. |
+| **Events declared, not emitted**      | `DotTransfer.sol` declares `TransferCreated/Revoked/ExpiryExtended` for ABI completeness. The Rust contract does not yet call `api::deposit_event`, which `pallet-revive-uapi` exposes and the riscv64 backend implements.                  |
+| **Expiry at the gate, not the store** | Expiry hides CIDs at the contract level; chunks persist on the Bulletin Chain indefinitely. Anyone who recorded CIDs before expiry can still fetch them from IPFS directly.                                                                 |
+| **Bulletin Chain authorisation**      | Uploads require the sender to be pre-authorised on the Bulletin Chain. Unauthorised attempts fail silently at the storage layer with no user-facing error.                                                                                  |
+| **No offline contract test harness**  | No `pallet-revive` equivalent of `TestExternalities` exists yet. The Rust contract must be tested against a live local node after deployment.                                                                                               |
+| **File size ceiling**                 | CID list capped at `MAX_CIDS_LEN = 4096` bytes (~69 CIDv1 strings, ~550 MiB at 8 MiB chunks). Bulletin Chain per-statement limits may be hit before the frontend cap on very large files.                                                   |
 
 ---
 
