@@ -58,20 +58,7 @@ All state — CIDs, uploader address, expiry, revocation flag — is stored on-c
 | **Execution environment** | `pallet-revive` on Polkadot Asset Hub (Paseo TestNet / local node)        |
 | **File storage**          | Bulletin Chain — Polkadot system chain used as a public IPFS gateway      |
 | **Frontend**              | React + Vite, TypeScript, Tailwind CSS                                    |
-| **Chain reads**           | [PAPI](https://papi.how/) over WebSocket (`polkadot-api`)                 |
-| **Contract calls**        | [viem](https://viem.sh/) over Ethereum JSON-RPC (`eth-rpc` adapter)       |
 | **Contract tooling**      | Hardhat 2.27, `@parity/resolc` 1.0.0                                      |
-
-### Why a Rust PVM Contract?
-
-`pallet-revive` can execute two bytecode formats:
-
-- **EVM** — standard Ethereum bytecode (solc). Full Ethereum tooling compatibility.
-- **PVM** — Polkadot's native PolkaVM (RISC-V). Lower gas costs, tighter Substrate integration, Rust-native development.
-
-This project uses the **PVM path** throughout and implements the contract in Rust (`no_std`) rather than recompiling Solidity. The ABI is kept Ethereum-compatible (EIP-712 encoded calls) so the same viem frontend works against both.
-
----
 
 ## Architecture
 
@@ -134,85 +121,6 @@ sequenceDiagram
 
 ---
 
-## Local Setup
-
-### Prerequisites
-
-| Requirement               | Version      | Install                                         |
-| ------------------------- | ------------ | ----------------------------------------------- |
-| **Rust**                  | stable       | `curl https://sh.rustup.rs -sSf \| sh`          |
-| **Node.js**               | 22.x LTS     | [nvm](https://github.com/nvm-sh/nvm): `nvm use` |
-| **Polkadot SDK binaries** | stable2512-3 | `./scripts/download-sdk-binaries.sh`            |
-
-The binaries script fetches `polkadot-omni-node`, `eth-rpc`, `chain-spec-builder`, `zombienet`, `polkadot`, `polkadot-prepare-worker`, and `polkadot-execute-worker` into `./bin/` (gitignored). Start scripts run this automatically unless `STACK_DOWNLOAD_SDK_BINARIES=0` is set.
-
-### Option A — Docker (no Rust required on host)
-
-```bash
-# Build and start node + eth-rpc adapter
-# First build compiles the Rust runtime — allow 10–20 min
-docker compose up -d
-
-# Deploy the PVM contract once the node is up
-cd contracts/pvm-rust && npm ci && npm run deploy:local
-
-# Start the frontend
-cd web && npm ci && npm run dev
-# → http://127.0.0.1:5173
-```
-
-Only Node.js is needed on the host. The Docker build compiles the Rust runtime and generates the chain spec automatically. See [`contracts/README.md`](contracts/README.md) and [`web/README.md`](web/README.md) for the component-specific follow-up steps.
-
-### Prerequisites (native)
-
-- **OpenSSL** development headers (`libssl-dev` on Ubuntu, `openssl` on macOS)
-- **protoc** Protocol Buffers compiler (`protobuf-compiler` on Ubuntu, `protobuf` on macOS)
-- **Rust** (stable, installed via [rustup](https://rustup.rs/))
-- **Node.js** 22.x LTS (`22.5+` recommended) and npm v10.9.0+
-- **Polkadot SDK binaries** (stable2512-3): `polkadot`, `polkadot-prepare-worker`, `polkadot-execute-worker` (relay), `polkadot-omni-node`, `eth-rpc`, `chain-spec-builder`, and `zombienet`. Fetch them all into `./bin/` (gitignored) with:
-
-    ```bash
-    ./scripts/download-sdk-binaries.sh
-    ```
-
-    This is the primary supported native setup for this repo. The stack scripts (`start-all.sh`, `start-local.sh`, etc.) run the same step automatically unless you set `STACK_DOWNLOAD_SDK_BINARIES=0`. Versions match the **Key Versions** table below.
-
-If your platform cannot use the downloader-managed binaries, see the limited-support fallback in [docs/INSTALL.md](docs/INSTALL.md#manual-binary-fallback-limited-support).
-
-The repo includes [`.nvmrc`](.nvmrc) and `engines` fields in the JavaScript projects to keep everyone on the same Node major version.
-
-### Run locally
-
-### Build Components Individually
-
-```bash
-# PVM contract (Rust → PolkaVM bytecode + ABI JSON in contracts/pvm-rust/target/)
-cd contracts/pvm-rust && cargo build --release
-
-# Solidity PVM variant (Solidity → PolkaVM via resolc)
-cd contracts/pvm && npm ci && npx hardhat compile
-
-# Frontend
-cd web && npm ci && npm run build
-```
-
-### Environment Variables
-
-The frontend reads from a `.env` file in `web/`. Defaults work for local development:
-
-```env
-# Override the Substrate WebSocket endpoint
-VITE_WS_URL=ws://localhost:9944
-
-# Override the Ethereum JSON-RPC endpoint
-VITE_ETH_RPC_URL=http://localhost:8545
-
-# Override the canonical app base URL (used when building share links)
-VITE_APP_URL=https://your-domain.dot.li
-```
-
----
-
 ## Deployment
 
 ### Polkadot Hub TestNet (Paseo)
@@ -242,14 +150,60 @@ Before uploads succeed on Paseo, the signing account must be authorised on the B
 
 This is a permissioned system; authorisation grants a temporary upload allowance.
 
-### Frontend (GitHub Pages / Static Host)
+## Local Setup
+
+### Prerequisites
+
+| Requirement               | Version      | Install                                         |
+| ------------------------- | ------------ | ----------------------------------------------- |
+| **Rust**                  | stable       | `curl https://sh.rustup.rs -sSf \| sh`          |
+| **Node.js**               | 22.x LTS     | [nvm](https://github.com/nvm-sh/nvm): `nvm use` |
+| **Polkadot SDK binaries** | stable2512-3 | `./scripts/download-sdk-binaries.sh`            |
+
+The binaries script fetches `polkadot-omni-node`, `eth-rpc`, `chain-spec-builder`, `zombienet`, `polkadot`, `polkadot-prepare-worker`, and `polkadot-execute-worker` into `./bin/` (gitignored). Start scripts run this automatically unless `STACK_DOWNLOAD_SDK_BINARIES=0` is set.
+
+### Prerequisites (native)
+
+- **OpenSSL** development headers (`libssl-dev` on Ubuntu, `openssl` on macOS)
+- **protoc** Protocol Buffers compiler (`protobuf-compiler` on Ubuntu, `protobuf` on macOS)
+- **Rust** (stable, installed via [rustup](https://rustup.rs/))
+- **Node.js** 22.x LTS (`22.5+` recommended) and npm v10.9.0+
+- **Polkadot SDK binaries** (stable2512-3): `polkadot`, `polkadot-prepare-worker`, `polkadot-execute-worker` (relay), `polkadot-omni-node`, `eth-rpc`, `chain-spec-builder`, and `zombienet`. Fetch them all into `./bin/` (gitignored) with:
+
+    ```bash
+    ./scripts/download-sdk-binaries.sh
+    ```
+
+If your platform cannot use the downloader-managed binaries, see the limited-support fallback in [docs/INSTALL.md](docs/INSTALL.md#manual-binary-fallback-limited-support).
+
+The repo includes [`.nvmrc`](.nvmrc) and `engines` fields in the JavaScript projects to keep everyone on the same Node major version.
+
+### Run locally
+
+### Build Components Individually
 
 ```bash
-./scripts/deploy-frontend.sh
-# Builds web/ and pushes the dist/ folder to the gh-pages branch
+# PVM contract (Rust → PolkaVM bytecode + ABI JSON in contracts/pvm-rust/target/)
+cd contracts/pvm-rust && cargo build --release
+
+# Frontend
+cd web && npm ci && npm run build
 ```
 
-The built output is fully static. Point any static host (Vercel, Netlify, GitHub Pages) at `web/dist/`. Set `VITE_APP_URL` to your domain before building so share links resolve correctly.
+### Environment Variables
+
+The frontend reads from a `.env` file in `web/`. Defaults work for local development:
+
+```env
+# Override the Substrate WebSocket endpoint
+VITE_WS_URL=ws://localhost:9944
+
+# Override the Ethereum JSON-RPC endpoint
+VITE_ETH_RPC_URL=http://localhost:8545
+
+# Override the canonical app base URL (used when building share links)
+VITE_APP_URL=https://your-domain.dot.li
+```
 
 ---
 
@@ -279,9 +233,7 @@ cd web && npm run lint
 | **N+1 trie reads**                    | `getTransfersByUploaderPage` returns IDs; the frontend then calls `getTransfer` per ID — ~180 Substrate trie traversals per page at `PAGE_SIZE=20`. Resolution: emit `TransferCreated` events and move batch reads to an off-chain indexer. |
 | **Events declared, not emitted**      | `DotTransfer.sol` declares `TransferCreated/Revoked/ExpiryExtended` for ABI completeness. The Rust contract does not yet call `api::deposit_event`, which `pallet-revive-uapi` exposes and the riscv64 backend implements.                  |
 | **Expiry at the gate, not the store** | Expiry hides CIDs at the contract level; chunks persist on the Bulletin Chain indefinitely. Anyone who recorded CIDs before expiry can still fetch them from IPFS directly.                                                                 |
-| **Bulletin Chain authorisation**      | Uploads require the sender to be pre-authorised on the Bulletin Chain. Unauthorised attempts fail silently at the storage layer with no user-facing error.                                                                                  |
 | **No offline contract test harness**  | No `pallet-revive` equivalent of `TestExternalities` exists yet. The Rust contract must be tested against a live local node after deployment.                                                                                               |
-| **File size ceiling**                 | CID list capped at `MAX_CIDS_LEN = 4096` bytes (~69 CIDv1 strings, ~550 MiB at 8 MiB chunks). Bulletin Chain per-statement limits may be hit before the frontend cap on very large files.                                                   |
 
 ---
 

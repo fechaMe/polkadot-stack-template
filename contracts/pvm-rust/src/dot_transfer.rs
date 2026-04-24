@@ -7,9 +7,9 @@
 //!
 //! ## Lifecycle
 //!
-//! 1. **Upload** — the uploader pins file chunks to IPFS, then calls
-//!    `createTransfer` to record the CID list, file metadata, and an expiry
-//!    timestamp.
+//! 1. **Upload** — the uploader stores the file on the Bulletin Chain (which
+//!    produces an IPFS-compatible CID), then calls `createTransfer` to record
+//!    the CID, file metadata, and an expiry timestamp.
 //! 2. **Download** — any caller passes the transfer ID to `getTransfer` to
 //!    obtain the CIDs (returned as an empty string when expired or revoked).
 //! 3. **Manage** — the uploader can call `revokeTransfer` to cancel early or
@@ -39,62 +39,42 @@ mod dot_transfer {
     use super::*;
 
     // Field slot tags — one byte appended to the transfer ID before hashing.
-    const SLOT_UPLOADER: u8 = 0;    // Address: who created the transfer
-    const SLOT_EXPIRES_AT: u8 = 1;  // U256: Unix timestamp (seconds) after which CIDs are hidden
-    const SLOT_FILE_SIZE: u8 = 2;   // U256: total file size in bytes
-    const SLOT_CHUNK_COUNT: u8 = 3; // U256: number of IPFS chunks
-    const SLOT_REVOKED: u8 = 4;     // bool: permanently cancelled by uploader
-    const SLOT_CIDS: u8 = 5;        // String: comma-separated IPFS CIDs
-    const SLOT_FILENAME: u8 = 6;    // String: original file name shown to recipient
-    const SLOT_LIST_LEN: u8 = 7;    // u64: length of the uploader's transfer list
-    const SLOT_DESCRIPTION: u8 = 8; // String: optional note from uploader to recipient
+    const SLOT_UPLOADER: u8 = 0;
+    const SLOT_EXPIRES_AT: u8 = 1;  // Unix timestamp in seconds (not ms)
+    const SLOT_FILE_SIZE: u8 = 2;
+    const SLOT_CHUNK_COUNT: u8 = 3;
+    const SLOT_REVOKED: u8 = 4;
+    const SLOT_CIDS: u8 = 5;        // pipe-separated entries (e.g. "cid|!salt:hex")
+    const SLOT_FILENAME: u8 = 6;
+    const SLOT_LIST_LEN: u8 = 7;
+    const SLOT_DESCRIPTION: u8 = 8;
 
     // ── abuse / scalability limits ────────────────────────────────────────────
 
-    /// Hard cap on the number of transfers a single uploader address may create.
-    /// Once this limit is hit, further `create_transfer` calls revert with
-    /// `TransferLimitReached`.  Bounds both per-account storage growth and the
-    /// cost of `get_transfers_by_uploader_page` queries.
+    /// Bounds per-account storage growth and `get_transfers_by_uploader_page` query cost.
     const MAX_TRANSFERS_PER_UPLOADER: u64 = 500;
 
-    /// Maximum byte length of the pipe-separated IPFS CID list.
-    /// A CIDv1 base32 string is ~59 bytes; 4 096 bytes fits ~69 CIDs, which
-    /// covers files chunked at 8 MiB each — well above the 50 MiB upload cap.
+    /// A CIDv1 base32 string is ~59 bytes; 4 096 bytes comfortably covers the
+    /// current single-CID-plus-salt format (~130 bytes) with significant headroom.
     const MAX_CIDS_LEN: usize = 4_096;
 
-    /// Maximum byte length of the file name field.
     /// 255 bytes matches the limit imposed by most operating-system file systems.
     const MAX_FILENAME_LEN: usize = 255;
 
-    /// Maximum byte length of the optional description field.
     const MAX_DESCRIPTION_LEN: usize = 512;
 
-    /// Errors returned by every state-mutating entry point.
     pub enum Error {
-        /// No transfer exists for the given ID.
         NotFound,
-        /// A transfer with this ID was already created.
         AlreadyTaken,
-        /// Caller is not the transfer's uploader.
         NotUploader,
-        /// Transfer has already been revoked and cannot be modified.
         AlreadyRevoked,
-        /// The supplied expiry timestamp is in the past.
         ExpiryInPast,
-        /// `file_size` must be greater than zero.
         FileSizeZero,
-        /// `cids` string must not be empty.
         EmptyCids,
-        /// `chunk_count` must be greater than zero.
         ChunkCountZero,
-        /// `new_expires_at` must be strictly greater than the current expiry.
         ExpiryNotExtended,
-        /// A string input (`cids`, `file_name`, or `description`) exceeded its
-        /// maximum allowed byte length.  Check `MAX_CIDS_LEN`, `MAX_FILENAME_LEN`,
-        /// or `MAX_DESCRIPTION_LEN` for the respective limits.
+        /// Applies to `cids`, `file_name`, and `description`; check the `MAX_*_LEN` constants.
         InputTooLong,
-        /// The uploader has reached `MAX_TRANSFERS_PER_UPLOADER` and cannot
-        /// create additional transfers until old ones are cleaned up.
         TransferLimitReached,
     }
 
@@ -118,16 +98,12 @@ mod dot_transfer {
 
     // ── storage key helpers ───────────────────────────────────────────────────
 
-    /// Thin wrapper over the `hash_keccak_256` host function.
     fn keccak256(input: &[u8]) -> [u8; 32] {
         let mut out = [0u8; 32];
         api::hash_keccak_256(input, &mut out);
         out
     }
 
-    /// Derives the storage slot key for field `slot` of transfer `id`.
-    /// Input is `id ++ slot_tag` (33 bytes); the hash ensures no two (id, slot)
-    /// pairs collide and no transfer's keys overlap with another transfer's.
     fn transfer_field_key(id: &[u8; 32], slot: u8) -> [u8; 32] {
         let mut input = [0u8; 33];
         input[..32].copy_from_slice(id);
@@ -135,8 +111,6 @@ mod dot_transfer {
         keccak256(&input)
     }
 
-    /// Derives a per-uploader metadata slot key (currently used only for `SLOT_LIST_LEN`).
-    /// Input is `addr ++ slot_tag` (21 bytes).
     fn uploader_meta_key(addr: &[u8; 20], slot: u8) -> [u8; 32] {
         let mut input = [0u8; 21];
         input[..20].copy_from_slice(addr);
@@ -144,8 +118,6 @@ mod dot_transfer {
         keccak256(&input)
     }
 
-    /// Derives the storage key for entry `index` in `addr`'s transfer list.
-    /// The big-endian index is appended so entries can be read in O(1) without scanning.
     fn uploader_item_key(addr: &[u8; 20], index: u64) -> [u8; 32] {
         let mut input = [0u8; 29];
         input[..20].copy_from_slice(addr);
@@ -154,7 +126,6 @@ mod dot_transfer {
         keccak256(&input)
     }
 
-    /// Derives the storage key for the `chunk`-th 32-byte segment of a string stored at `base`.
     fn string_chunk_key(base: &[u8; 32], chunk: u32) -> [u8; 32] {
         let mut input = [0u8; 36];
         input[..32].copy_from_slice(base);
@@ -164,7 +135,7 @@ mod dot_transfer {
 
     // ── raw 32-byte slot r/w ─────────────────────────────────────────────────
 
-    /// Reads one 32-byte slot from persistent storage. Returns all zeros for unset keys.
+    // Returns all-zeros for unset keys.
     fn read32(key: &[u8; 32]) -> [u8; 32] {
         let mut buf = [0u8; 32];
         let mut out: &mut [u8] = &mut buf;
@@ -172,7 +143,6 @@ mod dot_transfer {
         buf
     }
 
-    /// Writes one 32-byte value to persistent storage.
     fn write32(key: &[u8; 32], val: &[u8; 32]) {
         api::set_storage(StorageFlags::empty(), key, val);
     }
@@ -180,7 +150,6 @@ mod dot_transfer {
     // ── typed r/w ────────────────────────────────────────────────────────────
     // All scalar types are stored right-aligned in the 32-byte slot (EVM convention).
 
-    /// U256 stored big-endian, occupying the full 32 bytes.
     fn read_u256(key: &[u8; 32]) -> U256 {
         U256::from_be_bytes(read32(key))
     }
@@ -189,7 +158,6 @@ mod dot_transfer {
         write32(key, &val.to_be_bytes::<32>());
     }
 
-    /// Address stored right-aligned: bytes [0..12] = zero, bytes [12..32] = the 20-byte address.
     fn read_addr(key: &[u8; 32]) -> Address {
         let buf = read32(key);
         let mut inner = [0u8; 20];
@@ -203,7 +171,6 @@ mod dot_transfer {
         write32(key, &buf);
     }
 
-    /// Bool stored in the LSB of the slot (byte [31]).
     fn read_bool(key: &[u8; 32]) -> bool {
         read32(key)[31] != 0
     }
@@ -214,7 +181,6 @@ mod dot_transfer {
         write32(key, &buf);
     }
 
-    /// u64 stored right-aligned in bytes [24..32], big-endian.
     fn read_u64(key: &[u8; 32]) -> u64 {
         let buf = read32(key);
         let mut arr = [0u8; 8];
@@ -228,12 +194,7 @@ mod dot_transfer {
         write32(key, &buf);
     }
 
-    // Strings are stored as: base_key → length (u32 in bytes [28..32]),
-    // string_chunk_key(base, i) → 32-byte chunk i of the UTF-8 bytes.
-
-    /// Zeroes every chunk slot and the length header for the string at `base`.
-    /// Called on revoke so CIDs are erased from the trie, not just hidden at the API level —
-    /// raw `eth_getStorageAt` reads would otherwise still expose the data.
+    // Erases CID data from the trie so raw `eth_getStorageAt` reads cannot retrieve it.
     fn clear_string(base: &[u8; 32]) {
         let len_buf = read32(base);
         let mut arr = [0u8; 4];
@@ -248,8 +209,6 @@ mod dot_transfer {
         write32(base, &zero);
     }
 
-    /// Writes `s` to storage: length as u32 in bytes [28..32] of `base`, then UTF-8 bytes
-    /// in sequential 32-byte chunk slots. Each chunk is zero-padded to 32 bytes.
     fn write_string(base: &[u8; 32], s: &str) {
         let bytes = s.as_bytes();
         let len = bytes.len() as u32;
@@ -267,7 +226,6 @@ mod dot_transfer {
         }
     }
 
-    /// Reads the length header from `base`, then reassembles UTF-8 bytes from chunk slots.
     fn read_string(base: &[u8; 32]) -> String {
         let len_buf = read32(base);
         let mut arr = [0u8; 4];
@@ -290,7 +248,6 @@ mod dot_transfer {
 
     // ── host function wrappers ────────────────────────────────────────────────
 
-    /// Returns the 20-byte Ethereum address of the transaction sender.
     fn get_caller() -> Address {
         let mut inner = [0u8; 20];
         api::caller(&mut inner);
@@ -305,8 +262,7 @@ mod dot_transfer {
         U256::from_le_bytes(buf) / U256::from(1000u64)
     }
 
-    /// Returns true if `addr` is the zero address — used to detect unwritten storage slots,
-    /// since `get_storage` returns all zeros for keys that have never been set.
+    // Zero address means the storage slot was never written (get_storage returns all-zeros).
     fn is_zero(addr: &Address) -> bool {
         addr.0 == [0u8; 20]
     }
@@ -318,12 +274,9 @@ mod dot_transfer {
         Ok(())
     }
 
-    /// Records a new file transfer on-chain.
-    ///
-    /// Called by the frontend (UploadPage) after IPFS pins succeed.
-    /// `transfer_id` is a caller-generated 32-byte identifier (typically a
-    /// content hash of the metadata).  Reverts if the ID is already taken,
-    /// the expiry is in the past, or any required field is zero/empty.
+    /// Called by the frontend (UploadPage) after the Bulletin Chain upload succeeds.
+    /// `transfer_id` is typically the left-aligned bytes32 encoding of a random
+    /// alphanumeric slug.
     #[pvm_contract_macros::method]
     pub fn create_transfer(
         transfer_id: [u8; 32],
@@ -368,8 +321,6 @@ mod dot_transfer {
 
         let lk = uploader_meta_key(&sender.0, SLOT_LIST_LEN);
         let len = read_u64(&lk);
-        // Enforce the per-uploader cap before appending to prevent unbounded
-        // list growth and the associated O(n) query cost.
         if len >= MAX_TRANSFERS_PER_UPLOADER {
             return Err(Error::TransferLimitReached);
         }
@@ -379,12 +330,9 @@ mod dot_transfer {
         Ok(())
     }
 
-    /// Permanently cancels a transfer.
-    ///
-    /// Only the original uploader may call this.  Sets the revoked flag and
-    /// zeroes out the CID data in storage so the file cannot be downloaded
-    /// even through direct storage reads.  Other metadata (file name, size,
-    /// uploader address) is retained for auditability.
+    /// Only the original uploader may call this. Zeroes out CID storage so the file
+    /// cannot be retrieved via direct `eth_getStorageAt`; other metadata is retained
+    /// for auditability.
     #[pvm_contract_macros::method]
     pub fn revoke_transfer(transfer_id: [u8; 32]) -> Result<(), Error> {
         let uploader = read_addr(&transfer_field_key(&transfer_id, SLOT_UPLOADER));
@@ -405,13 +353,8 @@ mod dot_transfer {
         Ok(())
     }
 
-    /// Returns all stored fields for a transfer.
-    ///
-    /// Used by DownloadPage (single look-up) and MyTransfersPage (batch).
-    /// `cids` is returned as an empty string when the transfer is expired or
-    /// revoked, hiding the download location without exposing a separate
-    /// access-control check to callers.  The `expired` boolean is derived
-    /// on-chain from the current block timestamp.
+    /// `cids` is returned as an empty string when expired or revoked — callers
+    /// need not check those flags to protect the download location.
     #[pvm_contract_macros::method]
     pub fn get_transfer(
         transfer_id: [u8; 32],
@@ -436,11 +379,8 @@ mod dot_transfer {
         Ok((cids, uploader, expires_at, file_size, file_name, chunk_count, expired, revoked, description))
     }
 
-    /// Pushes the expiry forward to `new_expires_at`.
-    ///
     /// Only the uploader may call this on a non-revoked transfer.
-    /// `new_expires_at` must be strictly greater than the current expiry to
-    /// prevent no-op transactions.
+    /// `new_expires_at` must be strictly greater than the current expiry.
     #[pvm_contract_macros::method]
     pub fn extend_expiry(transfer_id: [u8; 32], new_expires_at: U256) -> Result<(), Error> {
         let uploader = read_addr(&transfer_field_key(&transfer_id, SLOT_UPLOADER));
@@ -463,16 +403,8 @@ mod dot_transfer {
         Ok(())
     }
 
-    /// Returns a page of transfer IDs for `uploader`, newest-first, together
-    /// with the total number of transfers ever stored for that address.
-    ///
-    /// Pagination is offset-based:
-    /// - `offset = 0` returns the newest `limit` transfers.
-    /// - `offset = 20` (after receiving 20 items) returns the next batch.
-    /// - Returns `([], total)` when `offset >= total` or `limit == 0`.
-    ///
-    /// The caller is responsible for capping `limit` to a reasonable page size
-    /// (the frontend uses 20) to bound the number of storage reads per call.
+    /// `total` is the all-time stored count for `uploader` (not filtered by expiry or revoke).
+    /// Returns `([], total)` when `offset >= total` or `limit == 0`.
     #[pvm_contract_macros::method]
     pub fn get_transfers_by_uploader_page(
         uploader: Address,
