@@ -2,27 +2,12 @@ import { useCallback, useEffect, useRef } from "react";
 import { getClient, disconnectClient } from "./useChain";
 import { useChainStore } from "../store/chainStore";
 
-let stackTemplateDescriptorPromise: Promise<
-	(typeof import("@polkadot-api/descriptors"))["stack_template"]
-> | null = null;
-
 let connectId = 0;
-
-async function getStackTemplateDescriptor() {
-	if (!stackTemplateDescriptorPromise) {
-		stackTemplateDescriptorPromise = import("@polkadot-api/descriptors").then(
-			({ stack_template }) => stack_template,
-		);
-	}
-
-	return stackTemplateDescriptorPromise;
-}
 
 export function useConnection() {
 	const setWsUrl = useChainStore((state) => state.setWsUrl);
 	const setConnected = useChainStore((state) => state.setConnected);
 	const setBlockNumber = useChainStore((state) => state.setBlockNumber);
-	const setPallets = useChainStore((state) => state.setPallets);
 
 	const connect = useCallback(
 		async (url: string) => {
@@ -30,13 +15,11 @@ export function useConnection() {
 			setWsUrl(url);
 			setConnected(false);
 			setBlockNumber(0);
-			setPallets({ templatePallet: null, revive: null });
 
 			disconnectClient();
 
 			try {
 				const client = getClient(url);
-				const descriptor = await getStackTemplateDescriptor();
 				const chain = await Promise.race([
 					client.getChainSpecData(),
 					new Promise<never>((_, reject) =>
@@ -47,36 +30,15 @@ export function useConnection() {
 				if (connectId !== id) return { ok: false, chain: null };
 
 				setConnected(true);
-
-				const api = client.getTypedApi(descriptor);
-				const detected = { templatePallet: false, revive: false };
-
-				try {
-					await api.query.TemplatePallet.Claims.getEntries();
-					detected.templatePallet = true;
-				} catch {
-					detected.templatePallet = false;
-				}
-
-				try {
-					await api.constants.Revive.DepositPerByte();
-					detected.revive = true;
-				} catch {
-					detected.revive = false;
-				}
-
-				if (connectId !== id) return { ok: false, chain: null };
-				setPallets(detected);
 				return { ok: true, chain };
 			} catch (e) {
 				if (connectId !== id) return { ok: false, chain: null };
 				setConnected(false);
 				setBlockNumber(0);
-				setPallets({ templatePallet: false, revive: false });
 				throw e;
 			}
 		},
-		[setBlockNumber, setConnected, setPallets, setWsUrl],
+		[setBlockNumber, setConnected, setWsUrl],
 	);
 
 	return { connect };

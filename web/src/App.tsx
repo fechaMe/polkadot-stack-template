@@ -4,18 +4,14 @@ import { useConnectionManagement } from "./hooks/useConnection";
 
 export default function App() {
 	const location = useLocation();
-	const pallets = useChainStore((s) => s.pallets);
 	const connected = useChainStore((s) => s.connected);
 
 	useConnectionManagement();
 
 	const navItems = [
-		{ path: "/", label: "Home", enabled: true },
-		{ path: "/pallet", label: "Pallet PoE", enabled: pallets.templatePallet === true },
-		{ path: "/evm", label: "EVM PoE", enabled: pallets.revive === true },
-		{ path: "/pvm", label: "PVM PoE", enabled: pallets.revive === true },
-		{ path: "/statements", label: "Statements", enabled: true },
-		{ path: "/accounts", label: "Accounts", enabled: true },
+		{ path: "/", label: "Home" },
+		{ path: "/transfer", label: "Send" },
+		{ path: "/my-transfers", label: "My Files" },
 	];
 
 	return (
@@ -23,58 +19,46 @@ export default function App() {
 			{/* Ambient gradient orbs */}
 			<div
 				className="gradient-orb"
-				style={{ background: "#e6007a", top: "-200px", right: "-100px" }}
+				style={{ background: "#00c8ff", top: "-220px", right: "-120px" }}
 			/>
 			<div
 				className="gradient-orb"
-				style={{ background: "#4cc2ff", bottom: "-200px", left: "-100px" }}
+				style={{ background: "#7c3aed", bottom: "-220px", left: "-120px" }}
 			/>
 
 			{/* Navigation */}
-			<nav className="sticky top-0 z-50 border-b border-white/[0.06] backdrop-blur-xl bg-surface-950/80">
-				<div className="max-w-5xl mx-auto px-4 py-3 flex items-center gap-6">
+			<nav className="sticky top-0 z-50 border-b border-white/[0.05] backdrop-blur-xl"
+				style={{ background: "rgba(6, 11, 20, 0.82)" }}>
+				<div className="max-w-4xl mx-auto px-4 py-3 flex items-center gap-6">
 					<Link to="/" className="flex items-center gap-2.5 shrink-0 group">
-						<div className="w-7 h-7 rounded-lg bg-gradient-to-br from-polka-500 to-polka-700 flex items-center justify-center shadow-glow transition-shadow group-hover:shadow-glow-lg">
-							<svg viewBox="0 0 16 16" className="w-4 h-4" fill="white">
-								<circle cx="8" cy="3" r="2" />
-								<circle cx="3" cy="8" r="2" />
-								<circle cx="13" cy="8" r="2" />
-								<circle cx="8" cy="13" r="2" />
-								<circle cx="8" cy="8" r="1.5" opacity="0.6" />
+						<div className="w-7 h-7 rounded-lg bg-gradient-to-br from-polka-400 to-polka-700 flex items-center justify-center shadow-glow transition-shadow group-hover:shadow-glow-lg">
+							<svg viewBox="0 0 16 16" className="w-4 h-4" fill="none">
+								<path d="M8 2 L8 14 M2 8 L14 8" stroke="white" strokeWidth="1.8" strokeLinecap="round" />
+								<circle cx="8" cy="8" r="2.5" fill="white" opacity="0.9" />
 							</svg>
 						</div>
 						<span className="text-base font-semibold text-text-primary font-display tracking-tight">
-							Polkadot Stack
+							StarDot
 						</span>
 					</Link>
 
-					<div className="flex gap-0.5 overflow-x-auto">
-						{navItems.map((item) =>
-							item.enabled ? (
-								<Link
-									key={item.path}
-									to={item.path}
-									className={`relative px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 whitespace-nowrap ${
-										location.pathname === item.path
-											? "text-white"
-											: "text-text-secondary hover:text-text-primary hover:bg-white/[0.04]"
-									}`}
-								>
-									{location.pathname === item.path && (
-										<span className="absolute inset-0 rounded-lg bg-polka-500/15 border border-polka-500/25" />
-									)}
-									<span className="relative">{item.label}</span>
-								</Link>
-							) : (
-								<span
-									key={item.path}
-									className="px-3 py-1.5 rounded-lg text-sm font-medium text-text-muted cursor-not-allowed whitespace-nowrap"
-									title="Pallet not available on connected chain"
-								>
-									{item.label}
-								</span>
-							),
-						)}
+					<div className="flex gap-0.5">
+						{navItems.map((item) => (
+							<Link
+								key={item.path}
+								to={item.path}
+								className={`relative px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 whitespace-nowrap ${
+									location.pathname === item.path
+										? "text-polka-400"
+										: "text-text-secondary hover:text-text-primary hover:bg-white/[0.04]"
+								}`}
+							>
+								{location.pathname === item.path && (
+									<span className="absolute inset-0 rounded-lg bg-polka-500/10 border border-polka-500/20" />
+								)}
+								<span className="relative">{item.label}</span>
+							</Link>
+						))}
 					</div>
 
 					{/* Connection indicator */}
@@ -94,7 +78,7 @@ export default function App() {
 			</nav>
 
 			{/* Main content */}
-			<main className="relative z-10 max-w-5xl mx-auto px-4 py-8">
+			<main className="relative z-10 max-w-4xl mx-auto px-4 py-8">
 				<Outlet />
 			</main>
 		</div>

@@ -1,84 +1,89 @@
 # Contracts
 
-This directory contains the Solidity Proof of Existence example compiled for two execution targets on the same chain.
+This directory contains two implementations of the **DotTransfer** smart contract — both target PolkaVM (RISC-V) bytecode executed by `pallet-revive` on Polkadot Asset Hub.
 
 ## Projects
 
-| Project | Path | Toolchain | VM backend |
-| --- | --- | --- | --- |
-| EVM | [`evm/`](evm/) | Hardhat + solc + viem | REVM |
-| PVM | [`pvm/`](pvm/) | Hardhat + `@parity/resolc` + viem | PolkaVM |
+| Project        | Path                     | Language        | Compiler                                | VM      |
+| -------------- | ------------------------ | --------------- | --------------------------------------- | ------- |
+| PVM (Rust)     | [`pvm-rust/`](pvm-rust/) | Rust (`no_std`) | `cargo-pvm-contract`                    | PolkaVM |
 
-Each project includes its own `ProofOfExistence.sol` entrypoint:
+Both expose the same Ethereum-compatible ABI (`DotTransfer.sol` interface) so the frontend and deploy tooling work against either.
 
-- [`evm/contracts/ProofOfExistence.sol`](evm/contracts/ProofOfExistence.sol)
-- [`pvm/contracts/ProofOfExistence.sol`](pvm/contracts/ProofOfExistence.sol)
+### Which One is Deployed
 
-Both projects target either:
+The **Rust PVM contract** (`pvm-rust/`) is the primary deployment. The Solidity PVM variant (`pvm/`) is kept for reference and comparison.
 
-- The local dev chain through `eth-rpc`
-- Polkadot Hub TestNet (`420420417`)
+### How the Rust Contract Works
+
+`pvm-rust/src/dot_transfer.rs` is a `no_std` Rust crate. The `pvm-contract-macros` proc-macro reads `DotTransfer.sol` at compile time to generate the ABI selector dispatch and type conversions. Host function calls (storage read/write, emit event, revert) go through `pallet-revive-uapi`.
+
+`cargo build --release` produces two artifacts in the workspace `target/` directory:
+
+| Artifact                               | Description                                         |
+| -------------------------------------- | --------------------------------------------------- |
+| `target/dot-transfer.release.polkavm`  | PolkaVM bytecode blob deployed on-chain             |
+| `target/dot-transfer.release.abi.json` | Ethereum ABI used by the deploy script and frontend |
 
 ## Local Deployment
 
 From the repo root, the recommended full local path is:
 
 ```bash
-./scripts/start-all.sh
-```
-
-Manual path against an already running local node, also from the repo root:
-
-```bash
-# Terminal 1
-./scripts/start-dev.sh
-
-# Terminal 2
-eth-rpc --node-rpc-url "${SUBSTRATE_RPC_WS:-ws://127.0.0.1:9944}" --rpc-port "${STACK_ETH_RPC_PORT:-8545}" --rpc-cors all
-
-# Terminal 3
-cd contracts/evm && npm install && npm run deploy:local
-cd contracts/pvm && npm install && npm run deploy:local
-```
-
-## Testnet Deployment
-
-From the repo root:
-
-```bash
-cd contracts/evm && npx hardhat vars set PRIVATE_KEY
-cd contracts/pvm && npx hardhat vars set PRIVATE_KEY
-
 ./scripts/deploy-paseo.sh
 ```
 
-You can also deploy each project directly with `npm run deploy:testnet`.
+Manual path against an already-running node:
 
-## Shared Deployment Outputs
+```bash
+# Terminal 1 — start a local dev node
+./scripts/start-dev.sh
 
-The deploy scripts update:
+# Terminal 2 — start the eth-rpc adapter
+eth-rpc --node-rpc-url ws://127.0.0.1:9944 --rpc-port 8545 --rpc-cors all
 
-- `deployments.json` in the repo root for CLI usage
-- [`../web/src/config/deployments.ts`](../web/src/config/deployments.ts) for the frontend
+# Terminal 3 — build and deploy the Rust PVM contract
+cd contracts/pvm-rust
+cargo build --release           # produces target/dot-transfer.release.polkavm
+npm ci && npm run deploy:local
+```
+
+Solidity PVM variant only:
+
+```bash
+cd contracts/pvm && npm ci && npm run deploy:local
+```
+
+## TestNet Deployment (Paseo)
+
+```bash
+# Rust PVM — requires PRIVATE_KEY env var
+cd contracts/pvm-rust
+NETWORK=paseo PRIVATE_KEY=0x... npm run deploy:paseo
+
+# Solidity PVM — requires Hardhat variable
+cd contracts/pvm
+npx hardhat vars set PRIVATE_KEY
+npm run deploy:testnet
+```
+
+Both deploy scripts write the contract address to:
+
+- `deployments.json` in the repo root
+- `web/src/config/deployments.ts` for the frontend
 
 ## Common Commands
 
-From the repo root:
-
 ```bash
-# EVM
-cd contracts/evm
-npm install
-npx hardhat compile
-npx hardhat test
-npm run fmt
-
-# PVM
+# Solidity PVM
 cd contracts/pvm
-npm install
+npm ci
 npx hardhat compile
 npx hardhat test
 npm run fmt
-```
 
-See [`../scripts/README.md`](../scripts/README.md) for the local stack scripts and [`../docs/DEPLOYMENT.md`](../docs/DEPLOYMENT.md) for hosted deployment details.
+# Rust PVM (contract build — run from repo root or contracts/pvm-rust/)
+cargo build --release
+cargo +nightly fmt
+cargo clippy
+```

@@ -32,4 +32,4 @@ fi
 
 export_frontend_runtime_env
 log_info "Frontend dev server: $FRONTEND_URL"
-npm run dev -- --host 127.0.0.1 --port "$STACK_FRONTEND_PORT"
+npm run dev -- --host 0.0.0.0 --port "$STACK_FRONTEND_PORT"

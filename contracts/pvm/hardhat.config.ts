@@ -2,8 +2,18 @@ import type { HardhatUserConfig } from "hardhat/config";
 import "@nomicfoundation/hardhat-viem";
 import "@parity/hardhat-polkadot";
 import { vars } from "hardhat/config";
+import { defineChain } from "viem";
 
-const config: HardhatUserConfig = {
+const paseoAssetHub = defineChain({
+	id: 420420417,
+	name: "Paseo Asset Hub",
+	nativeCurrency: { name: "PAS", symbol: "PAS", decimals: 10 },
+	rpcUrls: {
+		default: { http: ["https://eth-rpc-testnet.polkadot.io/"] },
+	},
+});
+
+const config = {
 	solidity: "0.8.28",
 	resolc: {
 		version: "1.0.0",
@@ -19,10 +29,13 @@ const config: HardhatUserConfig = {
 		},
 		polkadotTestnet: {
 			url: "https://services.polkadothub-rpc.com/testnet",
-			chainId: 420420417,
+			polkadot: true,
 			accounts: [process.env.PRIVATE_KEY ?? vars.get("PRIVATE_KEY", "")].filter(Boolean),
 		},
 	},
+	viem: {
+		chains: [paseoAssetHub],
+	},
 };
 
-export default config;
+export default config as HardhatUserConfig;

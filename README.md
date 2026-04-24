@@ -1,32 +1,167 @@
-# Polkadot Stack Template
+# StarDot
 
-A developer starter template demonstrating the full Polkadot technology stack through a **Proof of Existence** system — the same concept implemented as a Substrate pallet, a Solidity EVM contract, and a Solidity PVM contract. Drop a file, claim its hash on-chain, and optionally upload it to IPFS via the Bulletin Chain.
+A decentralised, temporary file-transfer dApp built on Polkadot (Rust `via cargo-pvm-contract` + PolkaVM + Vite). Upload a file, share a link, and revoke access at any time — with no backend, no accounts, and no intermediary holding the keys.
 
-Students do not need to use every part of this repo. The runtime, pallet, contracts, frontend, CLI, Bulletin integration, Spektr integration, and deployment workflows are intentionally separated so teams can keep only the slices they want.
+File content is stored on the **Bulletin Chain** (Polkadot's permissioned public bulletin board / IPFS layer). The transfer record — metadata, expiry, and revocation status — lives inside a **native Rust smart contract** compiled to PolkaVM (RISC-V) bytecode and executed by `pallet-revive` on Polkadot Asset Hub.
 
-## What's Inside
+---
 
-- **Polkadot SDK Blockchain** ([`blockchain/`](blockchain/)) — A Cumulus-based parachain compatible with `polkadot-omni-node`
-  - **Substrate Pallet** ([`blockchain/pallets/template/`](blockchain/pallets/template/)) — FRAME pallet for creating and revoking Proof of Existence claims on-chain
-  - **Parachain Runtime** ([`blockchain/runtime/`](blockchain/runtime/)) — Runtime wiring the pallet with smart contract support via `pallet-revive`
-- **Smart Contracts** ([`contracts/`](contracts/)) — The same PoE example as Solidity, compiled to both EVM bytecode (solc) and PVM/RISC-V bytecode (resolc)
-- **Frontend** ([`web/`](web/)) — React + TypeScript app using PAPI for pallet interactions and viem for contract calls
-- **CLI** ([`cli/`](cli/)) — Rust CLI for chain queries, pallet operations, and contract calls via subxt and alloy
-- **Dev Scripts** ([`scripts/`](scripts/)) — One-command scripts to build, start, and test the full stack locally
+## Table of Contents
 
-## Quick Start
+1. [Tech Stack](#tech-stack)
+2. [Architecture](#architecture)
+3. [Key Features](#key-features)
+4. [Local Setup](#local-setup)
+5. [Deployment](#deployment)
+6. [Testing](#testing)
+7. [Limitations](#limitations)
+8. [Key Versions](#key-versions)
 
-### Docker (no Rust required)
+---
+
+## Tech Stack
+
+| Layer                     | Technology                                                                |
+| ------------------------- | ------------------------------------------------------------------------- |
+| **Smart contract**        | Rust (`no_std`), compiled to PolkaVM (RISC-V) via `cargo-pvm-contract`    |
+| **Contract ABI**          | Generated from a Solidity interface by `pvm-contract-macros` (proc-macro) |
+| **Execution environment** | `pallet-revive` on Polkadot Asset Hub (Paseo TestNet / local node)        |
+| **File storage**          | Bulletin Chain — Polkadot system chain used as a public IPFS gateway      |
+| **Frontend**              | React + Vite, TypeScript, Tailwind CSS                                    |
+| **Chain reads**           | [PAPI](https://papi.how/) over WebSocket (`polkadot-api`)                 |
+| **Contract calls**        | [viem](https://viem.sh/) over Ethereum JSON-RPC (`eth-rpc` adapter)       |
+| **Contract tooling**      | Hardhat 2.27, `@parity/resolc` 1.0.0                                      |
+
+### Why a Rust PVM Contract?
+
+`pallet-revive` can execute two bytecode formats:
+
+- **EVM** — standard Ethereum bytecode (solc). Full Ethereum tooling compatibility.
+- **PVM** — Polkadot's native PolkaVM (RISC-V). Lower gas costs, tighter Substrate integration, Rust-native development.
+
+This project uses the **PVM path** throughout and implements the contract in Rust (`no_std`) rather than recompiling Solidity. The ABI is kept Ethereum-compatible (EIP-712 encoded calls) so the same viem frontend works against both.
+
+---
+
+## Architecture
+
+### Component Overview
+
+```mermaid
+graph TD
+    FE["StarDot Frontend\nReact + Vite · :5173"]
+    RPC["eth-rpc Adapter\n:8545"]
+    Chain["Polkadot Asset Hub\npallet-revive → DotTransfer Contract\nRust · PolkaVM"]
+    BL["Bulletin Chain\nFile chunks (IPFS-like)"]
+
+    FE -- "viem (contract calls)" --> RPC
+    FE -- "PAPI (chain data)" --> Chain
+    RPC --> Chain
+    FE -- "upload / fetch chunks" --> BL
+    Chain -. "CIDs in contract record" .-> BL
+```
+
+### Upload Flow
+
+```mermaid
+sequenceDiagram
+    actor S as Sender
+    participant FE as StarDot Frontend
+    participant BL as Bulletin Chain
+    participant SC as DotTransfer Contract
+
+    S->>FE: Select file and choose expiry window
+    FE->>BL: Check sender is authorised
+    FE->>BL: Upload file in chunks (max 8 MiB each)
+    Note over FE,BL: Last chunk gets a random 32-byte salt —<br/>identical files produce distinct CIDs
+    BL-->>FE: Return CID list
+    FE->>FE: Generate random 7-char share slug
+    FE->>SC: createTransfer(id, cids, expiresAt, fileSize, fileName, chunkCount)
+    SC-->>FE: Emit TransferCreated event
+    FE-->>S: Share link ready → /t/[slug]
+```
+
+### Download Flow
+
+```mermaid
+sequenceDiagram
+    actor R as Recipient
+    participant FE as StarDot Frontend
+    participant SC as DotTransfer Contract
+    participant BL as Bulletin Chain IPFS
+
+    R->>FE: Visit /t/[slug]
+    FE->>SC: getTransfer(id)
+    SC-->>FE: Return record (cids, expiresAt, revoked, …)
+
+    alt revoked = true OR block.timestamp ≥ expiresAt
+        FE-->>R: Access denied — link revoked or expired
+    else Record is valid
+        FE->>BL: Fetch chunks by CID from paseo-ipfs.polkadot.io
+        FE->>FE: Reassemble chunks and strip salt bytes
+        FE-->>R: File download begins
+    end
+```
+
+---
+
+## Key Features
+
+### 1. On-Demand Revocation
+
+Calling `revokeTransfer` sets `revoked = true` in PolkaVM storage. The flag is **permanent and irreversible** — not a database toggle. No admin override, no support ticket.
+
+### 2. Time-Bound Expiry
+
+Every record carries an `expiresAt` Unix timestamp enforced by `block.timestamp` in the contract. Access gates expire automatically without any cron job.
+
+### 3. Expiry Extension
+
+The uploader can call `extendExpiry(id, newExpiresAt)` to push the deadline forward. The contract enforces that the new timestamp must be strictly later than the current one.
+
+### 4. Enumeration-Resistant Share IDs
+
+Transfer IDs are client-generated 32-byte random values displayed as 12-character alphanumeric slugs. The contract rejects duplicate IDs but exposes no index.
+
+### 5. No Backend
+
+All state — CIDs, uploader address, expiry, revocation flag — is stored on-chain in the PVM contract. The frontend is a fully static site that reads directly from the node.
+
+### 6. Chunked + Salted Content Storage
+
+Large files are split into 8 MiB chunks and stored as separate Bulletin Chain statements. A random 32-byte salt is appended to the last chunk before upload so identical files produce distinct CIDs, preventing content correlation. Salt bytes are stripped transparently on download.
+
+### 7. Native Rust PVM Contract
+
+The contract (`contracts/pvm-rust/src/dot_transfer.rs`) is written in Rust (`no_std`) using `pallet-revive-uapi` for host function calls. The `pvm-contract-macros` proc-macro derives the Ethereum-compatible ABI from a companion Solidity interface file, making the contract callable by any EVM toolchain (viem, ethers, Hardhat).
+
+---
+
+## Local Setup
+
+### Prerequisites
+
+| Requirement               | Version      | Install                                         |
+| ------------------------- | ------------ | ----------------------------------------------- |
+| **Rust**                  | stable       | `curl https://sh.rustup.rs -sSf \| sh`          |
+| **Node.js**               | 22.x LTS     | [nvm](https://github.com/nvm-sh/nvm): `nvm use` |
+| **Polkadot SDK binaries** | stable2512-3 | `./scripts/download-sdk-binaries.sh`            |
+
+The binaries script fetches `polkadot-omni-node`, `eth-rpc`, `chain-spec-builder`, `zombienet`, `polkadot`, `polkadot-prepare-worker`, and `polkadot-execute-worker` into `./bin/` (gitignored). Start scripts run this automatically unless `STACK_DOWNLOAD_SDK_BINARIES=0` is set.
+
+### Option A — Docker (no Rust required on host)
 
 ```bash
-# Start the parachain node + Ethereum RPC adapter (first build compiles the runtime ~10-20 min)
+# Build and start node + eth-rpc adapter
+# First build compiles the Rust runtime — allow 10–20 min
 docker compose up -d
 
-# Deploy contracts and start the frontend on the host
-(cd contracts/evm && npm install && npm run deploy:local)
-(cd contracts/pvm && npm install && npm run deploy:local)
-(cd web && npm install && npm run dev)
-# Frontend: http://127.0.0.1:5173
+# Deploy the PVM contract once the node is up
+cd contracts/pvm-rust && npm ci && npm run deploy:local
+
+# Start the frontend
+cd web && npm ci && npm run dev
+# → http://127.0.0.1:5173
 ```
 
 Only Node.js is needed on the host. The Docker build compiles the Rust runtime and generates the chain spec automatically. See [`contracts/README.md`](contracts/README.md) and [`web/README.md`](web/README.md) for the component-specific follow-up steps.
@@ -39,11 +174,11 @@ Only Node.js is needed on the host. The Docker build compiles the Rust runtime a
 - **Node.js** 22.x LTS (`22.5+` recommended) and npm v10.9.0+
 - **Polkadot SDK binaries** (stable2512-3): `polkadot`, `polkadot-prepare-worker`, `polkadot-execute-worker` (relay), `polkadot-omni-node`, `eth-rpc`, `chain-spec-builder`, and `zombienet`. Fetch them all into `./bin/` (gitignored) with:
 
-  ```bash
-  ./scripts/download-sdk-binaries.sh
-  ```
+    ```bash
+    ./scripts/download-sdk-binaries.sh
+    ```
 
-  This is the primary supported native setup for this repo. The stack scripts (`start-all.sh`, `start-local.sh`, etc.) run the same step automatically unless you set `STACK_DOWNLOAD_SDK_BINARIES=0`. Versions match the **Key Versions** table below.
+    This is the primary supported native setup for this repo. The stack scripts (`start-all.sh`, `start-local.sh`, etc.) run the same step automatically unless you set `STACK_DOWNLOAD_SDK_BINARIES=0`. Versions match the **Key Versions** table below.
 
 If your platform cannot use the downloader-managed binaries, see the limited-support fallback in [docs/INSTALL.md](docs/INSTALL.md#manual-binary-fallback-limited-support).
 
@@ -52,99 +187,150 @@ The repo includes [`.nvmrc`](.nvmrc) and `engines` fields in the JavaScript proj
 ### Run locally
 
 ```bash
-# Start everything: node, contracts, and frontend in one command
+# Start node + eth-rpc + deploy contracts + start frontend (one command)
 ./scripts/start-all.sh
 # Substrate RPC: ws://127.0.0.1:9944
 # Ethereum RPC:  http://127.0.0.1:8545
 # Frontend:      http://127.0.0.1:5173
 ```
 
-`start-all.sh` is the recommended full-feature local path. It uses Zombienet under the hood so the Statement Store example works on `polkadot-sdk stable2512-3`.
-
-For the solo-node loop, relay-backed network, frontend-only startup, port overrides, or a second local stack, see [`scripts/README.md`](scripts/README.md).
-
-For component-specific next steps, see:
-
-- [`contracts/README.md`](contracts/README.md)
-- [`web/README.md`](web/README.md)
-- [`cli/README.md`](cli/README.md)
-
-### Lint & format
+Lighter options for faster iteration:
 
 ```bash
-# Rust (requires nightly for rustfmt config options)
-cargo +nightly fmt              # format
-cargo +nightly fmt --check      # check only
-cargo clippy --workspace        # lint
-
-# Frontend (web/)
-cd web && npm run fmt           # format
-cd web && npm run fmt:check     # check only
-cd web && npm run lint          # eslint
-
-# Contracts (contracts/evm/ and contracts/pvm/)
-cd contracts/evm && npm run fmt
-cd contracts/pvm && npm run fmt
+./scripts/start-dev.sh       # Solo dev node only (no relay chain / Zombienet)
+./scripts/start-local.sh     # Node + eth-rpc, no contract deploy or frontend
+./scripts/start-frontend.sh  # Frontend only (for an already-running chain)
 ```
 
-### Run tests
+### Build Components Individually
 
 ```bash
-# Pallet unit tests
-cargo test -p pallet-template
+# PVM contract (Rust → PolkaVM bytecode + ABI JSON in contracts/pvm-rust/target/)
+cd contracts/pvm-rust && cargo build --release
 
-# All tests including benchmarks
-SKIP_PALLET_REVIVE_FIXTURES=1 cargo test --workspace --features runtime-benchmarks
+# Solidity PVM variant (Solidity → PolkaVM via resolc)
+cd contracts/pvm && npm ci && npx hardhat compile
 
-# Statement Store runtime + CLI coverage
-cargo test -p stack-template-runtime
-cargo test -p stack-cli
+# Frontend
+cd web && npm ci && npm run build
+```
 
-# Relay-backed Statement Store smoke test
-./scripts/test-statement-store-smoke.sh
+### Environment Variables
 
-# Solidity tests (local Hardhat network)
-cd contracts/evm && npx hardhat test
+The frontend reads from a `.env` file in `web/`. Defaults work for local development:
+
+```env
+# Override the Substrate WebSocket endpoint
+VITE_WS_URL=ws://localhost:9944
+
+# Override the Ethereum JSON-RPC endpoint
+VITE_ETH_RPC_URL=http://localhost:8545
+
+# Override the canonical app base URL (used when building share links)
+VITE_APP_URL=https://your-domain.dot.li
+```
+
+---
+
+## Deployment
+
+### Polkadot Hub TestNet (Paseo)
+
+Chain ID: `420420417`
+
+The PVM contract is deployed at:
+
+To deploy your own instance:
+
+```bash
+# Fund the deployer address via https://faucet.polkadot.io/
+
+# Deploy PVM (Rust) contract to Paseo
+cd contracts/pvm-rust && npm ci && npm run deploy:paseo
+```
+
+The deploy script writes the new address to `deployments.json` at the repo root, which the frontend reads at build time via `web/src/config/deployments.ts`.
+
+### Bulletin Chain Authorisation
+
+Before uploads succeed on Paseo, the signing account must be authorised on the Bulletin Chain:
+
+1. Go to the [Bulletin Chain faucet](https://paritytech.github.io/polkadot-bulletin-chain/)
+2. Open **Faucet → Authorize Account**
+3. Submit the Substrate address that will sign uploads
+
+This is a permissioned system; authorisation grants a temporary upload allowance.
+
+### Frontend (GitHub Pages / Static Host)
+
+```bash
+./scripts/deploy-frontend.sh
+# Builds web/ and pushes the dist/ folder to the gh-pages branch
+```
+
+The built output is fully static. Point any static host (Vercel, Netlify, GitHub Pages) at `web/dist/`. Set `VITE_APP_URL` to your domain before building so share links resolve correctly.
+
+---
+
+## Testing
+
+```bash
+# PVM contract unit tests (Solidity variant, Hardhat)
 cd contracts/pvm && npx hardhat test
+
+# PVM Rust contract — deploy to a live local node first, then run manually
+cd contracts/pvm-rust && cargo build --release && npm run deploy:local
+# No offline test harness exists yet for the Rust PVM path
+
+# Frontend type check
+cd web && npx tsc --noEmit
+
+# Frontend lint
+cd web && npm run lint
 ```
 
-## Documentation
+---
 
-- [docs/TOOLS.md](docs/TOOLS.md) - All Polkadot stack components used in this template
-- [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) - Deployment guide (GitHub Pages, DotNS, contracts, runtime)
-- [docs/INSTALL.md](docs/INSTALL.md) - Detailed setup instructions
+## Limitations
 
-## Using Only What You Need
+| Area                                  | Detail                                                                                                                                                                                                            |
+| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Bulletin Chain access**             | Uploads require the sender's address to be pre-authorised on the Bulletin Chain via the faucet. This is a hard gate; unauthorised uploads fail silently at the storage layer.                                     |
+| **No content deletion**               | `revokeTransfer` prevents the frontend gate from opening, but raw chunks remain on the Bulletin Chain. A recipient who cached the CIDs before revocation can still fetch them directly from Bulletin Chain nodes. |
+| **Expiry at the gate, not the store** | Expiry is enforced in the contract and the frontend — not at the IPFS layer. Chunks persist on Bulletin Chain past their expiry.                                                                                  |
+| **PVM contract tests**                | There is no offline PolkaVM test harness. The Rust contract must be tested against a live local node after deployment.                                                                                            |
+| **File size ceiling**                 | Upload size is gated by `MAX_TRANSFER_SIZE` in the frontend and by Bulletin Chain statement limits. Very large files may hit gas or per-statement size limits before the frontend cap.                            |
+| **Dev accounts in local mode**        | The frontend defaults to well-known Substrate dev accounts (Alice / Bob) locally. Production use requires a connected wallet (Spektr or browser extension).                                                       |
+| **Single deployed address**           | `deployments.json` stores one address per contract name. Multiple deployments (e.g., across branches or networks) overwrite each other; the intended multi-network workflow is not yet formalised.                |
 
-- **Pallet only**: Keep [`blockchain/pallets/template/`](blockchain/pallets/template/), [`blockchain/runtime/`](blockchain/runtime/), and optionally [`cli/`](cli/). You can ignore `contracts/`, `web/src/components/ContractProofOfExistencePage.tsx`, and `eth-rpc`.
-- **Contracts only**: Keep [`contracts/`](contracts/) plus the `Revive` runtime wiring in [`blockchain/runtime/`](blockchain/runtime/). The pallet and Bulletin integration are optional.
-- **Frontend only**: The core PoE UI lives in [`web/src/pages/PalletPage.tsx`](web/src/pages/PalletPage.tsx), [`web/src/pages/EvmContractPage.tsx`](web/src/pages/EvmContractPage.tsx), and [`web/src/pages/PvmContractPage.tsx`](web/src/pages/PvmContractPage.tsx). The Accounts page, Spektr support, and Bulletin upload hook can be removed without affecting the basic claim flows.
-- **Optional integrations**: Bulletin Chain, Spektr, and DotNS are isolated extras. They are documented locally in [docs/TOOLS.md](docs/TOOLS.md) and can be skipped entirely for workshops or hackathons.
+---
 
 ## Key Versions
 
-| Component | Version |
-|---|---|
-| polkadot-sdk | stable2512-3 (umbrella crate v2512.3.3) |
-| polkadot | v1.21.3 (relay chain binary) |
-| polkadot-omni-node | v1.21.3 (from stable2512-3 release) |
-| eth-rpc | v0.12.0 (Ethereum JSON-RPC adapter) |
-| chain-spec-builder | v16.0.0 |
-| zombienet | v1.3.133 |
-| pallet-revive | v0.12.2 (EVM + PVM smart contracts) |
-| Node.js | 22.x LTS |
-| Solidity | v0.8.28 |
-| resolc | v1.0.0 |
-| PAPI | v1.23.3 |
-| React | v18.3 |
-| viem | v2.x |
-| alloy | v1.8 |
-| Hardhat | v2.27+ |
+| Component          | Version                                 |
+| ------------------ | --------------------------------------- |
+| polkadot-sdk       | stable2512-3 (umbrella crate v2512.3.3) |
+| polkadot           | v1.21.3 (relay chain binary)            |
+| polkadot-omni-node | v1.21.3 (from stable2512-3 release)     |
+| eth-rpc            | v0.12.0 (Ethereum JSON-RPC adapter)     |
+| chain-spec-builder | v16.0.0                                 |
+| zombienet          | v1.3.133                                |
+| pallet-revive      | v0.12.2 (EVM + PVM smart contracts)     |
+| Node.js            | 22.x LTS                                |
+| Solidity           | v0.8.28                                 |
+| resolc             | v1.0.0                                  |
+| PAPI               | v1.23.3                                 |
+| React              | v18.3                                   |
+| viem               | v2.x                                    |
+| alloy              | v1.8                                    |
+| Hardhat            | v2.27+                                  |
 
 ## Resources
 
 - [Polkadot Smart Contract Docs](https://docs.polkadot.com/smart-contracts/overview/)
 - [Polkadot SDK Documentation](https://paritytech.github.io/polkadot-sdk/master/)
+- [pallet-revive Docs](https://docs.rs/pallet-revive/latest/pallet_revive/)
+- [PolkaVM / cargo-pvm-contract](https://github.com/paritytech/polkavm)
 - [PAPI Documentation](https://papi.how/)
 - [Polkadot Faucet](https://faucet.polkadot.io/) (TestNet tokens)
 - [Blockscout Explorer](https://blockscout-testnet.polkadot.io/) (Polkadot TestNet)

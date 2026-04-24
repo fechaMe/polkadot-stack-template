@@ -8,7 +8,7 @@ node_modules/
 dist/
 .parcel-cache/
 *.tsbuildinfo
-
+dist.car
 # Environment
 .env
 .env.local
@@ -23,6 +23,10 @@ dist/
 # OS
 .DS_Store
 Thumbs.db
+
+# misc
+*.txt
+*.png
 
 # Chain data
 chain_data/
@@ -40,3 +44,5 @@ contracts/*/ignition/deployments/
 
 # Polkadot SDK binaries (downloaded by scripts into repo-local bin/)
 /bin/
+web/dist.bulletin.car
+deployments.json
