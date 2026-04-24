@@ -100,7 +100,7 @@ export default function HomePage() {
 							<path d="M8 2v9M4 7l4-5 4 5M2 13h12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
 						),
 						title: "Upload",
-						desc: "Drop any file. It's chunked into 8 MiB pieces and stored on the Paseo Bulletin Chain via IPFS.",
+						desc: "Drop any file up to 5 MiB. It's salted and stored on the Paseo Bulletin Chain, addressable as an IPFS CID.",
 					},
 					{
 						icon: (
@@ -110,7 +110,7 @@ export default function HomePage() {
 							</>
 						),
 						title: "Record",
-						desc: "A PVM smart contract on Paseo Asset Hub indexes the transfer — uploader, CIDs, expiry, and file name.",
+						desc: "A PolkaVM smart contract on Paseo Asset Hub indexes the transfer — uploader, CID, expiry, and file name — via pallet-revive.",
 					},
 					{
 						icon: (
@@ -122,7 +122,7 @@ export default function HomePage() {
 							</>
 						),
 						title: "Share",
-						desc: "Copy the generated link. Recipients download directly from IPFS — the contract proves authenticity.",
+						desc: "Copy the generated link. Recipients download directly from IPFS — the contract records the uploader's address and CID, so they can verify who sent it and that the file is intact.",
 					},
 				].map((step) => (
 					<div key={step.title} className="card space-y-3">
@@ -133,6 +133,41 @@ export default function HomePage() {
 						</div>
 						<h3 className="font-semibold text-text-primary font-display">{step.title}</h3>
 						<p className="text-sm text-text-secondary leading-relaxed">{step.desc}</p>
+					</div>
+				))}
+			</div>
+
+			{/* Features */}
+			<div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+				{[
+					{
+						title: "No servers",
+						desc: "Files are stored on the Paseo Bulletin Chain via pallet-statement and retrieved directly from IPFS. The contract lives on Polkadot — nothing runs on a central host.",
+					},
+					{
+						title: "Configurable expiry",
+						desc: "Each transfer has an on-chain expiry (1 hour to 14 days). Once expired, the contract withholds the CID. Bulletin Chain data also auto-drops after ~14 days.",
+					},
+					{
+						title: "Uploader can revoke",
+						desc: "The uploader can revoke a transfer at any time. Revocation zeroes the stored CIDs on-chain, making the file unreachable even via direct IPFS lookups.",
+					},
+					{
+						title: "Enumeration-resistant IDs",
+						desc: "Transfer IDs are 12-character random alphanumeric slugs. The contract has no global listing — you need the link to find a transfer. IDs cannot be guessed or crawled.",
+					},
+					{
+						title: "Uploader identity on-chain",
+						desc: "The uploader's address is recorded immutably at creation time. Anyone with the link can verify who sent the file and that the bytes haven't changed since upload.",
+					},
+					{
+						title: "PolkaVM smart contract",
+						desc: "The transfer index is a native Rust contract compiled to RISC-V bytecode and executed by pallet-revive on Paseo Asset Hub, with full Ethereum RPC compatibility.",
+					},
+				].map((f) => (
+					<div key={f.title} className="card space-y-2">
+						<h3 className="text-sm font-semibold text-text-primary">{f.title}</h3>
+						<p className="text-sm text-text-secondary leading-relaxed">{f.desc}</p>
 					</div>
 				))}
 			</div>

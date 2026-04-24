@@ -20,13 +20,24 @@ export type UploaderTransfer = {
 };
 
 const SLUG_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789";
-const SLUG_LENGTH = 7;
+const SLUG_LENGTH = 12;
+// Largest multiple of SLUG_CHARS.length (36) that fits in a byte.
+// Bytes >= this value are discarded to eliminate modulo bias: 7 × 36 = 252.
+const SLUG_BIAS_LIMIT = Math.floor(256 / SLUG_CHARS.length) * SLUG_CHARS.length;
 
-/** Generate a random 7-character alphanumeric slug [a-z0-9]. */
+/** Generate a random 12-character alphanumeric slug [a-z0-9] with no modulo bias. */
 export function generateSlug(): string {
-	const buf = new Uint8Array(SLUG_LENGTH);
-	crypto.getRandomValues(buf);
-	return Array.from(buf, (b) => SLUG_CHARS[b % SLUG_CHARS.length]).join("");
+	const result: string[] = [];
+	while (result.length < SLUG_LENGTH) {
+		const buf = new Uint8Array(SLUG_LENGTH * 2); // generous buffer reduces loop iterations
+		crypto.getRandomValues(buf);
+		for (const b of buf) {
+			if (result.length < SLUG_LENGTH && b < SLUG_BIAS_LIMIT) {
+				result.push(SLUG_CHARS[b % SLUG_CHARS.length]);
+			}
+		}
+	}
+	return result.join("");
 }
 
 /** Encode a slug as a left-aligned bytes32 hex string (unused bytes are 0x00). */
@@ -181,27 +192,34 @@ export async function getTransferRecord(
 	};
 }
 
+/** Number of transfers fetched per page — balances initial load time vs. RPC call count. */
+export const PAGE_SIZE = 20;
+
 /**
- * Fetch all transfers created by a given uploader address.
- * Makes one call to get the bytes32 IDs, then batches getTransfer calls.
+ * Fetch one page of transfers for an uploader, newest-first.
+ *
+ * offset=0 returns the newest PAGE_SIZE transfers. Pass `transfers.length` as
+ * offset for each subsequent "load more" call. Returns both the loaded
+ * transfers and the on-chain total so the caller can show a progress indicator.
  */
-export async function getTransfersByUploader(
+export async function getTransfersByUploaderPage(
 	contractAddress: string,
 	uploaderAddress: string,
+	offset: number,
 	ethRpcUrl: string,
-): Promise<UploaderTransfer[]> {
+): Promise<{ transfers: UploaderTransfer[]; total: number }> {
 	const publicClient = getPublicClient(ethRpcUrl);
 	const addr = contractAddress as Address;
 
-	const transferIds = await publicClient.readContract({
+	const [transferIds, totalBig] = await publicClient.readContract({
 		address: addr,
 		abi: dotTransferAbi,
-		functionName: "getTransfersByUploader",
-		args: [uploaderAddress as Address],
-	});
+		functionName: "getTransfersByUploaderPage",
+		args: [uploaderAddress as Address, BigInt(offset), BigInt(PAGE_SIZE)],
+	}) as [readonly `0x${string}`[], bigint];
 
-	const results = await Promise.all(
-		(transferIds as readonly `0x${string}`[]).map(async (transferId) => {
+	const transfers = await Promise.all(
+		transferIds.map(async (transferId) => {
 			const result = await publicClient.readContract({
 				address: addr,
 				abi: dotTransferAbi,
@@ -224,7 +242,7 @@ export async function getTransfersByUploader(
 		}),
 	);
 
-	return results.reverse(); // newest first
+	return { transfers, total: Number(totalBig) };
 }
 
 /** Check that a contract is deployed at the given address. */

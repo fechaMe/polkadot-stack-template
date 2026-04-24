@@ -47,10 +47,8 @@ function formatSize(bytes: number): string {
 }
 
 function progressLabel(progress: BulletinUploadProgress): string {
-	if (progress.phase === "reading") return "Reading file...";
-	if (progress.phase === "uploading") {
-		return `Uploading chunk ${progress.chunkIndex + 1} of ${progress.totalChunks} to Bulletin Chain...`;
-	}
+	if (progress.phase === "reading") return "Reading file…";
+	if (progress.phase === "uploading") return "Uploading to Bulletin Chain…";
 	return "Upload complete";
 }
 
@@ -70,7 +68,7 @@ export default function UploadPage() {
 		if (f.size > MAX_TRANSFER_SIZE) {
 			setStep({
 				type: "error",
-				message: `File too large (${formatSize(f.size)}). Maximum is 50 MiB.`,
+				message: `File too large (${formatSize(f.size)}). Maximum is 5 MiB.`,
 			});
 			return;
 		}
@@ -235,7 +233,7 @@ export default function UploadPage() {
 
 				{/* Drop zone */}
 				<div>
-					<label className="label">File (max 50 MiB)</label>
+					<label className="label">File (max 5 MiB)</label>
 					<div
 						onDrop={handleDrop}
 						onDragOver={(e) => {
@@ -275,9 +273,7 @@ export default function UploadPage() {
 									<p className="text-text-secondary font-medium">
 										Drop a file here or click to select
 									</p>
-									<p className="text-text-muted text-xs">
-										Up to 50 MiB · chunked into 8 MiB pieces
-									</p>
+									<p className="text-text-muted text-xs">Up to 5 MiB</p>
 								</div>
 							)}
 						</label>
@@ -383,21 +379,30 @@ function StepIndicator({ step }: { step: UploadStep }) {
 	const steps = [
 		{
 			id: "authorizing",
-			label: "Authorizing",
-			detail: "Checking Bulletin Chain authorization...",
+			label: "Authorize Bulletin Account",
+			tech: "pallet-statement · TransactionStorage",
+			activeDetail:
+				"Querying on-chain storage authorization for your dev account on the Paseo Bulletin Chain. Only pre-authorized accounts can submit statements.",
+			doneDetail:
+				"Account confirmed — sufficient storage credit (transactions + bytes) available.",
 		},
 		{
 			id: "uploading",
-			label: "Uploading to Bulletin Chain",
-			detail:
+			label: "Store on Bulletin Chain",
+			tech: "blake2b CID · 32-byte salt · IPFS-addressable",
+			activeDetail:
 				step.type === "uploading"
 					? progressLabel(step.progress)
-					: "Uploading file chunks via TransactionStorage...",
+					: "Signing and submitting a TransactionStorage.store() extrinsic. A random salt ensures a unique IPFS CID for every upload.",
+			doneDetail: "File stored on-chain and addressable via IPFS CID.",
 		},
 		{
 			id: "signing",
-			label: "Recording on Asset Hub",
-			detail: "Submitting PVM contract transaction to Paseo Asset Hub...",
+			label: "Record on Paseo Asset Hub",
+			tech: "pallet-revive · PolkaVM (RISC-V) · eth-rpc proxy",
+			activeDetail:
+				"Calling createTransfer() on the PolkaVM smart contract. Slug ID, IPFS CID, expiry, and file metadata written immutably on Paseo Asset Hub.",
+			doneDetail: "Transfer indexed on-chain — slug ID, CID, and metadata are permanent.",
 		},
 	];
 
@@ -413,7 +418,7 @@ function StepIndicator({ step }: { step: UploadStep }) {
 	}
 
 	return (
-		<div className="space-y-2">
+		<div className="space-y-3">
 			{steps.map((s, i) => {
 				const isDone = step.type === "done" || i < currentIndex;
 				const isActive = s.id === step.type;
@@ -443,23 +448,28 @@ function StepIndicator({ step }: { step: UploadStep }) {
 								i + 1
 							)}
 						</div>
-						<div className="min-w-0">
-							<p
-								className={`text-sm font-medium ${
-									isDone
-										? "text-text-secondary"
-										: isActive
-										? "text-text-primary"
-										: "text-text-muted"
-								}`}
-							>
-								{s.label}
-								{isActive && (
-									<span className="ml-2 inline-block w-1.5 h-1.5 rounded-full bg-polka-400 animate-pulse" />
-								)}
-							</p>
-							{isActive && (
-								<p className="text-xs text-text-tertiary mt-0.5">{s.detail}</p>
+						<div className="min-w-0 flex-1">
+							<div className="flex items-center gap-2 flex-wrap">
+								<p
+									className={`text-sm font-medium ${
+										isDone
+											? "text-text-secondary"
+											: isActive
+											? "text-text-primary"
+											: "text-text-muted"
+									}`}
+								>
+									{s.label}
+									{isActive && (
+										<span className="ml-2 inline-block w-1.5 h-1.5 rounded-full bg-polka-400 animate-pulse" />
+									)}
+								</p>
+							</div>
+							<p className="text-[11px] font-mono text-text-muted mt-0.5">{s.tech}</p>
+							{(isActive || isDone) && (
+								<p className={`text-xs mt-1 leading-relaxed ${isDone ? "text-text-muted" : "text-text-secondary"}`}>
+									{isDone ? s.doneDetail : s.activeDetail}
+								</p>
 							)}
 						</div>
 					</div>

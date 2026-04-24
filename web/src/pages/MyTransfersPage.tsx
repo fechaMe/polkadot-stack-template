@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { deployments } from "../config/deployments";
 import { useChainStore } from "../store/chainStore";
 import {
-	getTransfersByUploader,
+	getTransfersByUploaderPage,
 	revokeTransfer,
 	extendExpiry,
 	checkContractDeployed,
@@ -194,7 +194,9 @@ export default function MyTransfersPage() {
 	const evmAddress = evmDevAccounts[selectedIndex].account.address;
 
 	const [transfers, setTransfers] = useState<UploaderTransfer[]>([]);
+	const [total, setTotal] = useState(0);
 	const [loading, setLoading] = useState(false);
+	const [loadingMore, setLoadingMore] = useState(false);
 	const [loadError, setLoadError] = useState<string | null>(null);
 
 	// revoke state
@@ -216,20 +218,40 @@ export default function MyTransfersPage() {
 		if (!contractAddress) return;
 		setLoading(true);
 		setLoadError(null);
+		setTransfers([]);
+		setTotal(0);
 		try {
 			const deployed = await checkContractDeployed(contractAddress, ethRpcUrl);
 			if (!deployed) {
 				setLoadError(`No DotTransfer contract found at ${contractAddress}.`);
 				return;
 			}
-			const results = await getTransfersByUploader(contractAddress, evmAddress, ethRpcUrl);
+			const { transfers: results, total: t } = await getTransfersByUploaderPage(
+				contractAddress, evmAddress, 0, ethRpcUrl,
+			);
 			setTransfers(results);
+			setTotal(t);
 		} catch (err) {
 			setLoadError(err instanceof Error ? err.message : String(err));
 		} finally {
 			setLoading(false);
 		}
 	}, [evmAddress, contractAddress, ethRpcUrl]);
+
+	async function loadMore() {
+		setLoadingMore(true);
+		try {
+			const { transfers: more, total: t } = await getTransfersByUploaderPage(
+				contractAddress, evmAddress, transfers.length, ethRpcUrl,
+			);
+			setTransfers((prev) => [...prev, ...more]);
+			setTotal(t);
+		} catch (err) {
+			setLoadError(err instanceof Error ? err.message : String(err));
+		} finally {
+			setLoadingMore(false);
+		}
+	}
 
 	useEffect(() => {
 		loadTransfers();
@@ -467,6 +489,14 @@ export default function MyTransfersPage() {
 						</div>
 					)}
 
+					{transfers.length > 0 && (
+						<p className="text-xs text-text-muted text-right">
+							{transfers.length < total
+								? `Showing ${transfers.length} of ${total}`
+								: `${total} transfer${total !== 1 ? "s" : ""}`}
+						</p>
+					)}
+
 					<div className="space-y-2">
 						{displayedTransfers.map(({ slug, record }) => {
 							const isActive = !record.expired && !record.revoked;
@@ -591,6 +621,16 @@ export default function MyTransfersPage() {
 							);
 						})}
 					</div>
+
+					{transfers.length < total && (
+						<button
+							onClick={loadMore}
+							disabled={loadingMore}
+							className="btn-secondary w-full text-sm"
+						>
+							{loadingMore ? "Loading…" : `Load more (${transfers.length} of ${total})`}
+						</button>
+					)}
 				</>
 			)}
 		</div>

@@ -26,7 +26,7 @@ export const evmDevAccounts = [
 ];
 
 // DotTransfer contract ABI — WeTransfer-style file sharing via Bulletin Chain IPFS.
-// TransferIDs are client-generated random bytes32 slugs (7 ASCII chars, left-aligned).
+// TransferIDs are client-generated random bytes32 slugs (12 ASCII chars, left-aligned).
 export const dotTransferAbi = [
 	{
 		type: "function",
@@ -79,11 +79,20 @@ export const dotTransferAbi = [
 	},
 	{
 		type: "function",
-		name: "getTransfersByUploader",
-		inputs: [{ name: "uploader", type: "address" }],
-		outputs: [{ name: "", type: "bytes32[]" }],
+		name: "getTransfersByUploaderPage",
+		inputs: [
+			{ name: "uploader", type: "address" },
+			{ name: "offset", type: "uint64" },
+			{ name: "limit", type: "uint64" },
+		],
+		outputs: [
+			{ name: "ids", type: "bytes32[]" },
+			{ name: "total", type: "uint64" },
+		],
 		stateMutability: "view",
 	},
+	{ type: "error", name: "InputTooLong", inputs: [] },
+	{ type: "error", name: "TransferLimitReached", inputs: [] },
 	{ type: "error", name: "NotFound", inputs: [] },
 	{ type: "error", name: "AlreadyTaken", inputs: [] },
 	{ type: "error", name: "NotUploader", inputs: [] },
@@ -135,7 +144,7 @@ function isLocalEthRpcUrl(url: string) {
 export function getPublicClient(ethRpcUrl = getStoredEthRpcUrl()) {
 	if (!publicClient || publicClientUrl !== ethRpcUrl) {
 		publicClient = createPublicClient({
-			transport: http(ethRpcUrl),
+			transport: http(ethRpcUrl, { batch: true }),
 		});
 		publicClientUrl = ethRpcUrl;
 	}

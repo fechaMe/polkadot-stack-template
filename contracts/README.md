@@ -6,7 +6,6 @@ This directory contains two implementations of the **DotTransfer** smart contrac
 
 | Project        | Path                     | Language        | Compiler                                | VM      |
 | -------------- | ------------------------ | --------------- | --------------------------------------- | ------- |
-| PVM (Solidity) | [`pvm/`](pvm/)           | Solidity 0.8.28 | `resolc` via `@parity/hardhat-polkadot` | PolkaVM |
 | PVM (Rust)     | [`pvm-rust/`](pvm-rust/) | Rust (`no_std`) | `cargo-pvm-contract`                    | PolkaVM |
 
 Both expose the same Ethereum-compatible ABI (`DotTransfer.sol` interface) so the frontend and deploy tooling work against either.

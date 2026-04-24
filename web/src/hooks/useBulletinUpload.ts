@@ -3,17 +3,17 @@ import { type PolkadotSigner } from "polkadot-api";
 import { hexHashToCid } from "../utils/cid";
 import { uploadToBulletin, checkBulletinAuthorization } from "./useBulletin";
 
-const MAX_CHUNK_SIZE = 8 * 1024 * 1024; // 8 MiB — Bulletin Chain limit per tx
-export const MAX_TRANSFER_SIZE = 50 * 1024 * 1024; // 50 MiB total
-const SALT_SIZE = 32; // random bytes appended to last chunk to make CID unique per upload
+const MAX_CHUNK_SIZE = 8 * 1024 * 1024; // 8 MiB — Bulletin Chain per-tx limit (kept for chunkBytesWithSalt tests)
+export const MAX_TRANSFER_SIZE = 5 * 1024 * 1024; // 5 MiB user-facing limit
+const SALT_SIZE = 32; // random bytes appended to make each upload's CID unique
 
 export type BulletinUploadProgress =
 	| { phase: "reading" }
-	| { phase: "uploading"; chunkIndex: number; totalChunks: number }
+	| { phase: "uploading" }
 	| { phase: "done" };
 
 export type BulletinUploadResult = {
-	cids: string; // Pipe-separated IPFS CID(s) plus a "!salt:hex" marker
+	cids: string; // "ipfs-cid|!salt:hex"
 	chunkCount: number;
 };
 
@@ -30,10 +30,10 @@ function bytesToHex(bytes: Uint8Array): string {
 /**
  * Split bytes into ≤8 MiB chunks, appending a 32-byte random salt to the last
  * chunk so that identical files always produce distinct CIDs.
- * If the last natural chunk is exactly MAX_CHUNK_SIZE, the overflow goes into
- * a new chunk so we never exceed the per-tx limit.
  *
- * Exported for unit testing only — not part of the public API.
+ * Exported for unit testing only — uploadFileToBulletin uses the simpler
+ * single-upload path directly. With MAX_TRANSFER_SIZE at 5 MiB this always
+ * produces exactly one chunk.
  */
 export function chunkBytesWithSalt(bytes: Uint8Array): { chunks: Uint8Array[]; salt: Uint8Array } {
 	const salt = new Uint8Array(SALT_SIZE);
@@ -41,7 +41,6 @@ export function chunkBytesWithSalt(bytes: Uint8Array): { chunks: Uint8Array[]; s
 
 	const raw: Uint8Array[] = [];
 	if (bytes.length === 0) {
-		// Edge: empty file — salt alone forms the single chunk
 		raw.push(new Uint8Array(0));
 	} else {
 		for (let i = 0; i < bytes.length; i += MAX_CHUNK_SIZE) {
@@ -51,13 +50,11 @@ export function chunkBytesWithSalt(bytes: Uint8Array): { chunks: Uint8Array[]; s
 
 	const last = raw[raw.length - 1];
 	if (last.length + SALT_SIZE <= MAX_CHUNK_SIZE) {
-		// Salt fits inside the last chunk
 		const salted = new Uint8Array(last.length + SALT_SIZE);
 		salted.set(last);
 		salted.set(salt, last.length);
 		raw[raw.length - 1] = salted;
 	} else {
-		// Last chunk is full — move the tail bytes into a new chunk with the salt
 		const keep = last.slice(0, MAX_CHUNK_SIZE - SALT_SIZE);
 		const tail = last.slice(MAX_CHUNK_SIZE - SALT_SIZE);
 		const extra = new Uint8Array(tail.length + SALT_SIZE);
@@ -71,21 +68,19 @@ export function chunkBytesWithSalt(bytes: Uint8Array): { chunks: Uint8Array[]; s
 }
 
 /**
- * Check if the account is authorized for a single chunk upload on the Bulletin Chain.
+ * Check if the account is authorized to upload on the Bulletin Chain.
  */
 export async function checkTransferAuthorization(
 	address: string,
 	fileSize: number,
 ): Promise<boolean> {
-	const chunkSize = Math.min(fileSize + SALT_SIZE, MAX_CHUNK_SIZE);
-	return checkBulletinAuthorization(address, chunkSize);
+	return checkBulletinAuthorization(address, fileSize + SALT_SIZE);
 }
 
 /**
- * Upload a file to the Bulletin Chain.
- * Files are chunked into ≤8 MiB pieces; a 32-byte random salt is appended to
- * the last chunk so the same file uploaded twice produces different CIDs.
- * Returns pipe-separated CIDs plus a "!salt:hex" marker for the download path.
+ * Upload a file to the Bulletin Chain via pallet-statement (TransactionStorage).
+ * A 32-byte random salt is appended so the same file uploaded twice produces
+ * different CIDs. Files must be ≤5 MiB.
  */
 export async function uploadFileToBulletin(
 	file: File,
@@ -94,7 +89,7 @@ export async function uploadFileToBulletin(
 ): Promise<BulletinUploadResult> {
 	if (file.size > MAX_TRANSFER_SIZE) {
 		throw new Error(
-			`File too large (${(file.size / 1024 / 1024).toFixed(1)} MiB). Maximum is 50 MiB.`,
+			`File too large (${(file.size / 1024 / 1024).toFixed(1)} MiB). Maximum is 5 MiB.`,
 		);
 	}
 
@@ -102,25 +97,30 @@ export async function uploadFileToBulletin(
 	const buffer = await file.arrayBuffer();
 	const bytes = new Uint8Array(buffer);
 
-	const { chunks, salt } = chunkBytesWithSalt(bytes);
-	const cids: string[] = [];
+	// Append a random 32-byte salt so repeated uploads of the same file
+	// produce distinct CIDs on the Bulletin Chain.
+	const salt = new Uint8Array(SALT_SIZE);
+	crypto.getRandomValues(salt);
+	const salted = new Uint8Array(bytes.length + SALT_SIZE);
+	salted.set(bytes);
+	salted.set(salt, bytes.length);
 
-	for (let i = 0; i < chunks.length; i++) {
-		onProgress?.({ phase: "uploading", chunkIndex: i, totalChunks: chunks.length });
-		const chunk = chunks[i];
-		cids.push(bytesToHexCid(chunk));
-		await uploadToBulletin(chunk, signer);
-	}
+	const cid = bytesToHexCid(salted);
+
+	onProgress?.({ phase: "uploading" });
+	await uploadToBulletin(salted, signer);
 
 	onProgress?.({ phase: "done" });
 
-	// Append the salt marker so the download path knows to strip SALT_SIZE bytes
-	const cidString = [...cids, `!salt:${bytesToHex(salt)}`].join("|");
-	return { cids: cidString, chunkCount: chunks.length };
+	return {
+		cids: `${cid}|!salt:${bytesToHex(salt)}`,
+		chunkCount: 1,
+	};
 }
 
 /**
  * Parse the CIDs string: separate actual IPFS CIDs from the "!salt:hex" marker.
+ * Compatible with both single-CID (current) and multi-CID (legacy) formats.
  */
 export function parseCids(cidsString: string): { cidList: string[]; hasSalt: boolean } {
 	const parts = cidsString.split("|").filter(Boolean);
@@ -130,8 +130,8 @@ export function parseCids(cidsString: string): { cidList: string[]; hasSalt: boo
 }
 
 /**
- * Fetch all chunks from the IPFS gateway and reassemble the original file bytes.
- * Strips the trailing salt bytes if the "!salt:..." marker is present in the CIDs string.
+ * Fetch the file bytes from the IPFS gateway and strip the trailing salt bytes.
+ * Handles both single-CID (current) and multi-CID (legacy) formats.
  */
 export async function fetchTransferFromIpfs(
 	cidsString: string,
@@ -145,16 +145,13 @@ export async function fetchTransferFromIpfs(
 		const url = `https://paseo-ipfs.polkadot.io/ipfs/${cidList[i]}`;
 		const res = await fetch(url);
 		if (!res.ok) {
-			throw new Error(
-				`IPFS fetch failed for chunk ${i + 1}/${cidList.length}: HTTP ${res.status}`,
-			);
+			throw new Error(`IPFS fetch failed: HTTP ${res.status}`);
 		}
 		buffers.push(await res.arrayBuffer());
 	}
 
 	onProgress?.(cidList.length, cidList.length);
 
-	// Concatenate all chunks
 	const totalSize = buffers.reduce((sum, b) => sum + b.byteLength, 0);
 	const combined = new Uint8Array(totalSize);
 	let offset = 0;
@@ -163,7 +160,6 @@ export async function fetchTransferFromIpfs(
 		offset += buf.byteLength;
 	}
 
-	// Strip the trailing salt bytes from the last chunk
 	const stripBytes = hasSalt ? SALT_SIZE : 0;
 	return combined.buffer.slice(0, combined.byteLength - stripBytes);
 }

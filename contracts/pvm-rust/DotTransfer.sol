@@ -25,6 +25,10 @@ interface DotTransfer {
 	error EmptyCids();
 	error ChunkCountZero();
 	error ExpiryNotExtended();
+	/// A string input (cids, fileName, or description) exceeded its maximum byte length.
+	error InputTooLong();
+	/// The uploader has reached the per-account transfer cap and cannot create more.
+	error TransferLimitReached();
 
 	function createTransfer(
 		bytes32 transferId,
@@ -57,5 +61,12 @@ interface DotTransfer {
 			string memory description
 		);
 
-	function getTransfersByUploader(address uploader) external view returns (bytes32[] memory);
+	/// Returns a page of transfer IDs (newest-first) and the total stored count for `uploader`.
+	/// Use offset=0 for the first page; pass the number of already-received items as offset
+	/// for subsequent pages.  Returns ([], total) when offset >= total.
+	function getTransfersByUploaderPage(
+		address uploader,
+		uint64 offset,
+		uint64 limit
+	) external view returns (bytes32[] memory ids, uint64 total);
 }

@@ -1,3 +1,32 @@
+//! # DotTransfer — on-chain file transfer registry
+//!
+//! This is the PolkaVM (RISC-V) smart contract that backs the DotTransfer
+//! dapp.  It stores file-transfer metadata on-chain so that a recipient can
+//! look up a transfer ID and retrieve the IPFS CIDs needed to download the
+//! file.
+//!
+//! ## Lifecycle
+//!
+//! 1. **Upload** — the uploader pins file chunks to IPFS, then calls
+//!    `createTransfer` to record the CID list, file metadata, and an expiry
+//!    timestamp.
+//! 2. **Download** — any caller passes the transfer ID to `getTransfer` to
+//!    obtain the CIDs (returned as an empty string when expired or revoked).
+//! 3. **Manage** — the uploader can call `revokeTransfer` to cancel early or
+//!    `extendExpiry` to push the deadline forward.
+//! 4. **List** — `getTransfersByUploaderPage(uploader, offset, limit)` returns a
+//!    page of transfer IDs (newest-first) plus the total stored count, used by
+//!    the "My Transfers" page for incremental / paginated loading.
+//!
+//! ## Storage layout
+//!
+//! Each transfer field occupies a dedicated 32-byte EVM-style slot.  The slot
+//! key for field `tag` of transfer `id` is `keccak256(id ++ tag)`.  Strings
+//! are stored as a length header at the field's base key, followed by
+//! consecutive 32-byte content chunks keyed by `keccak256(base ++ chunk_i)`.
+//! The uploader's list of transfer IDs is stored separately, keyed by the
+//! uploader's 20-byte address.
+
 #![cfg_attr(not(feature = "abi-gen"), no_main, no_std)]
 
 use alloc::string::String;
@@ -9,27 +38,64 @@ use ruint::aliases::U256;
 mod dot_transfer {
     use super::*;
 
-    // Storage slot tags for Transfer fields, one byte appended to the transfer ID before hashing.
-    const SLOT_UPLOADER: u8 = 0;
-    const SLOT_EXPIRES_AT: u8 = 1;
-    const SLOT_FILE_SIZE: u8 = 2;
-    const SLOT_CHUNK_COUNT: u8 = 3;
-    const SLOT_REVOKED: u8 = 4;
-    const SLOT_CIDS: u8 = 5;
-    const SLOT_FILENAME: u8 = 6;
-    const SLOT_LIST_LEN: u8 = 7;
-    const SLOT_DESCRIPTION: u8 = 8;
+    // Field slot tags — one byte appended to the transfer ID before hashing.
+    const SLOT_UPLOADER: u8 = 0;    // Address: who created the transfer
+    const SLOT_EXPIRES_AT: u8 = 1;  // U256: Unix timestamp (seconds) after which CIDs are hidden
+    const SLOT_FILE_SIZE: u8 = 2;   // U256: total file size in bytes
+    const SLOT_CHUNK_COUNT: u8 = 3; // U256: number of IPFS chunks
+    const SLOT_REVOKED: u8 = 4;     // bool: permanently cancelled by uploader
+    const SLOT_CIDS: u8 = 5;        // String: comma-separated IPFS CIDs
+    const SLOT_FILENAME: u8 = 6;    // String: original file name shown to recipient
+    const SLOT_LIST_LEN: u8 = 7;    // u64: length of the uploader's transfer list
+    const SLOT_DESCRIPTION: u8 = 8; // String: optional note from uploader to recipient
 
+    // ── abuse / scalability limits ────────────────────────────────────────────
+
+    /// Hard cap on the number of transfers a single uploader address may create.
+    /// Once this limit is hit, further `create_transfer` calls revert with
+    /// `TransferLimitReached`.  Bounds both per-account storage growth and the
+    /// cost of `get_transfers_by_uploader_page` queries.
+    const MAX_TRANSFERS_PER_UPLOADER: u64 = 500;
+
+    /// Maximum byte length of the pipe-separated IPFS CID list.
+    /// A CIDv1 base32 string is ~59 bytes; 4 096 bytes fits ~69 CIDs, which
+    /// covers files chunked at 8 MiB each — well above the 50 MiB upload cap.
+    const MAX_CIDS_LEN: usize = 4_096;
+
+    /// Maximum byte length of the file name field.
+    /// 255 bytes matches the limit imposed by most operating-system file systems.
+    const MAX_FILENAME_LEN: usize = 255;
+
+    /// Maximum byte length of the optional description field.
+    const MAX_DESCRIPTION_LEN: usize = 512;
+
+    /// Errors returned by every state-mutating entry point.
     pub enum Error {
+        /// No transfer exists for the given ID.
         NotFound,
+        /// A transfer with this ID was already created.
         AlreadyTaken,
+        /// Caller is not the transfer's uploader.
         NotUploader,
+        /// Transfer has already been revoked and cannot be modified.
         AlreadyRevoked,
+        /// The supplied expiry timestamp is in the past.
         ExpiryInPast,
+        /// `file_size` must be greater than zero.
         FileSizeZero,
+        /// `cids` string must not be empty.
         EmptyCids,
+        /// `chunk_count` must be greater than zero.
         ChunkCountZero,
+        /// `new_expires_at` must be strictly greater than the current expiry.
         ExpiryNotExtended,
+        /// A string input (`cids`, `file_name`, or `description`) exceeded its
+        /// maximum allowed byte length.  Check `MAX_CIDS_LEN`, `MAX_FILENAME_LEN`,
+        /// or `MAX_DESCRIPTION_LEN` for the respective limits.
+        InputTooLong,
+        /// The uploader has reached `MAX_TRANSFERS_PER_UPLOADER` and cannot
+        /// create additional transfers until old ones are cleaned up.
+        TransferLimitReached,
     }
 
     impl AsRef<[u8]> for Error {
@@ -44,6 +110,8 @@ mod dot_transfer {
                 Error::EmptyCids => b"EmptyCids",
                 Error::ChunkCountZero => b"ChunkCountZero",
                 Error::ExpiryNotExtended => b"ExpiryNotExtended",
+                Error::InputTooLong => b"InputTooLong",
+                Error::TransferLimitReached => b"TransferLimitReached",
             }
         }
     }
@@ -218,20 +286,6 @@ mod dot_transfer {
         addr.0 == [0u8; 20]
     }
 
-    // ABI encode (uint256 expiresAt, string fileName, uint256 fileSize) for TransferCreated.
-    fn encode_created_data(expires_at: U256, file_name: &str, file_size: U256) -> Vec<u8> {
-        let fn_bytes = file_name.as_bytes();
-        let fn_len = fn_bytes.len();
-        let fn_padded = (fn_len + 31) / 32 * 32;
-        let mut data = vec![0u8; 96 + 32 + fn_padded];
-        data[0..32].copy_from_slice(&expires_at.to_be_bytes::<32>());
-        data[32..64].copy_from_slice(&U256::from(96u64).to_be_bytes::<32>());
-        data[64..96].copy_from_slice(&file_size.to_be_bytes::<32>());
-        data[96..128].copy_from_slice(&U256::from(fn_len as u64).to_be_bytes::<32>());
-        data[128..128 + fn_len].copy_from_slice(fn_bytes);
-        data
-    }
-
     // ── contract entry points ─────────────────────────────────────────────────
 
     #[pvm_contract_macros::constructor]
@@ -239,6 +293,12 @@ mod dot_transfer {
         Ok(())
     }
 
+    /// Records a new file transfer on-chain.
+    ///
+    /// Called by the frontend (UploadPage) after IPFS pins succeed.
+    /// `transfer_id` is a caller-generated 32-byte identifier (typically a
+    /// content hash of the metadata).  Reverts if the ID is already taken,
+    /// the expiry is in the past, or any required field is zero/empty.
     #[pvm_contract_macros::method]
     pub fn create_transfer(
         transfer_id: [u8; 32],
@@ -249,6 +309,12 @@ mod dot_transfer {
         chunk_count: U256,
         description: String,
     ) -> Result<(), Error> {
+        // Reject oversized strings before touching storage.  Without these
+        // guards a single transaction could write thousands of storage slots.
+        if cids.len() > MAX_CIDS_LEN { return Err(Error::InputTooLong); }
+        if file_name.len() > MAX_FILENAME_LEN { return Err(Error::InputTooLong); }
+        if description.len() > MAX_DESCRIPTION_LEN { return Err(Error::InputTooLong); }
+
         if !is_zero(&read_addr(&transfer_field_key(&transfer_id, SLOT_UPLOADER))) {
             return Err(Error::AlreadyTaken);
         }
@@ -277,20 +343,23 @@ mod dot_transfer {
 
         let lk = uploader_meta_key(&sender.0, SLOT_LIST_LEN);
         let len = read_u64(&lk);
+        // Enforce the per-uploader cap before appending to prevent unbounded
+        // list growth and the associated O(n) query cost.
+        if len >= MAX_TRANSFERS_PER_UPLOADER {
+            return Err(Error::TransferLimitReached);
+        }
         write32(&uploader_item_key(&sender.0, len), &transfer_id);
         write_u64(&lk, len + 1);
-
-        let topic0 = keccak256(b"TransferCreated(bytes32,address,uint256,string,uint256)");
-        let mut topic2 = [0u8; 32];
-        topic2[12..32].copy_from_slice(&sender.0);
-        api::deposit_event(
-            &[topic0, transfer_id, topic2],
-            &encode_created_data(expires_at, &file_name, file_size),
-        );
 
         Ok(())
     }
 
+    /// Permanently cancels a transfer.
+    ///
+    /// Only the original uploader may call this.  Sets the revoked flag and
+    /// zeroes out the CID data in storage so the file cannot be downloaded
+    /// even through direct storage reads.  Other metadata (file name, size,
+    /// uploader address) is retained for auditability.
     #[pvm_contract_macros::method]
     pub fn revoke_transfer(transfer_id: [u8; 32]) -> Result<(), Error> {
         let uploader = read_addr(&transfer_field_key(&transfer_id, SLOT_UPLOADER));
@@ -308,14 +377,16 @@ mod dot_transfer {
         write_bool(&rk, true);
         clear_string(&transfer_field_key(&transfer_id, SLOT_CIDS));
 
-        let topic0 = keccak256(b"TransferRevoked(bytes32,address)");
-        let mut topic2 = [0u8; 32];
-        topic2[12..32].copy_from_slice(&sender.0);
-        api::deposit_event(&[topic0, transfer_id, topic2], &[]);
-
         Ok(())
     }
 
+    /// Returns all stored fields for a transfer.
+    ///
+    /// Used by DownloadPage (single look-up) and MyTransfersPage (batch).
+    /// `cids` is returned as an empty string when the transfer is expired or
+    /// revoked, hiding the download location without exposing a separate
+    /// access-control check to callers.  The `expired` boolean is derived
+    /// on-chain from the current block timestamp.
     #[pvm_contract_macros::method]
     pub fn get_transfer(
         transfer_id: [u8; 32],
@@ -340,6 +411,11 @@ mod dot_transfer {
         Ok((cids, uploader, expires_at, file_size, file_name, chunk_count, expired, revoked, description))
     }
 
+    /// Pushes the expiry forward to `new_expires_at`.
+    ///
+    /// Only the uploader may call this on a non-revoked transfer.
+    /// `new_expires_at` must be strictly greater than the current expiry to
+    /// prevent no-op transactions.
     #[pvm_contract_macros::method]
     pub fn extend_expiry(transfer_id: [u8; 32], new_expires_at: U256) -> Result<(), Error> {
         let uploader = read_addr(&transfer_field_key(&transfer_id, SLOT_UPLOADER));
@@ -359,27 +435,43 @@ mod dot_transfer {
         }
         write_u256(&transfer_field_key(&transfer_id, SLOT_EXPIRES_AT), new_expires_at);
 
-        let topic0 = keccak256(b"TransferExpiryExtended(bytes32,address,uint256)");
-        let mut topic2 = [0u8; 32];
-        topic2[12..32].copy_from_slice(&sender.0);
-        api::deposit_event(&[topic0, transfer_id, topic2], &new_expires_at.to_be_bytes::<32>());
-
         Ok(())
     }
 
+    /// Returns a page of transfer IDs for `uploader`, newest-first, together
+    /// with the total number of transfers ever stored for that address.
+    ///
+    /// Pagination is offset-based:
+    /// - `offset = 0` returns the newest `limit` transfers.
+    /// - `offset = 20` (after receiving 20 items) returns the next batch.
+    /// - Returns `([], total)` when `offset >= total` or `limit == 0`.
+    ///
+    /// The caller is responsible for capping `limit` to a reasonable page size
+    /// (the frontend uses 20) to bound the number of storage reads per call.
     #[pvm_contract_macros::method]
-    pub fn get_transfers_by_uploader(uploader: Address) -> Vec<[u8; 32]> {
+    pub fn get_transfers_by_uploader_page(
+        uploader: Address,
+        offset: u64,
+        limit: u64,
+    ) -> (Vec<[u8; 32]>, u64) {
         let lk = uploader_meta_key(&uploader.0, SLOT_LIST_LEN);
-        let len = read_u64(&lk);
-        let mut result = Vec::with_capacity(len as usize);
-        for i in 0..len {
-            result.push(read32(&uploader_item_key(&uploader.0, i)));
-        }
-        result
-    }
+        let total = read_u64(&lk);
 
-    #[pvm_contract_macros::fallback]
-    pub fn fallback() -> Result<(), Error> {
-        Ok(())
+        if offset >= total || limit == 0 {
+            return (Vec::new(), total);
+        }
+
+        // Items are appended oldest-first (index 0 = oldest stored).
+        // To serve newest-first: the first item in this page lives at
+        // storage index (total - 1 - offset); subsequent items step backwards.
+        let first_idx = total - 1 - offset;
+        // available = first_idx + 1 = total - offset  (no underflow: offset < total)
+        let count = limit.min(total - offset);
+
+        let mut result = Vec::with_capacity(count as usize);
+        for i in 0..count {
+            result.push(read32(&uploader_item_key(&uploader.0, first_idx - i)));
+        }
+        (result, total)
     }
 }
