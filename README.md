@@ -1,4 +1,4 @@
-# StarDot
+# [StarDot](https://stardot-fechame.dot.li/)
 
 A decentralised, temporary file-transfer dApp built on Polkadot (Rust `via cargo-pvm-contract` + PolkaVM + Vite). Upload a file, share a link, and revoke access at any time — with no backend, no accounts, and no intermediary holding the keys.
 
@@ -20,6 +20,10 @@ File content is stored on the **Bulletin Chain** (Polkadot's permissioned public
 ---
 
 ## Key Features
+
+### 1. Native Rust PVM Contract
+
+The contract (`contracts/pvm-rust/src/dot_transfer.rs`) is written in Rust (`no_std`) using `pallet-revive-uapi` for host function calls. The `pvm-contract-macros` proc-macro derives the Ethereum-compatible ABI from a companion Solidity interface file, making the contract callable by any EVM toolchain (viem, ethers, Hardhat).
 
 ### 1. On-Demand Revocation
 
@@ -45,9 +49,7 @@ All state — CIDs, uploader address, expiry, revocation flag — is stored on-c
 
 Large files are split into 8 MiB chunks and stored as separate Bulletin Chain statements. A random 32-byte salt is appended to the last chunk before upload so identical files produce distinct CIDs, preventing content correlation. Salt bytes are stripped transparently on download.
 
-### 7. Native Rust PVM Contract
 
-The contract (`contracts/pvm-rust/src/dot_transfer.rs`) is written in Rust (`no_std`) using `pallet-revive-uapi` for host function calls. The `pvm-contract-macros` proc-macro derives the Ethereum-compatible ABI from a companion Solidity interface file, making the contract callable by any EVM toolchain (viem, ethers, Hardhat).
 
 ---
 
