@@ -19,12 +19,18 @@ export type BulletinUploadResult = {
 
 function bytesToHexCid(bytes: Uint8Array): string {
 	const hash = blake2b(bytes, undefined, 32);
-	const hexHash = "0x" + Array.from(hash).map((b) => b.toString(16).padStart(2, "0")).join("");
+	const hexHash =
+		"0x" +
+		Array.from(hash)
+			.map((b) => b.toString(16).padStart(2, "0"))
+			.join("");
 	return hexHashToCid(hexHash);
 }
 
 function bytesToHex(bytes: Uint8Array): string {
-	return Array.from(bytes).map((b) => b.toString(16).padStart(2, "0")).join("");
+	return Array.from(bytes)
+		.map((b) => b.toString(16).padStart(2, "0"))
+		.join("");
 }
 
 /**

@@ -59,9 +59,32 @@ function getFileCategory(fileName: string): string {
 	if (ext === "pdf") return "pdf";
 	if (
 		[
-			"js", "ts", "jsx", "tsx", "py", "rs", "go", "java", "c", "cpp", "h",
-			"css", "html", "json", "xml", "yaml", "yml", "sh", "bash", "toml", "md",
-			"rb", "php", "cs", "swift", "kt",
+			"js",
+			"ts",
+			"jsx",
+			"tsx",
+			"py",
+			"rs",
+			"go",
+			"java",
+			"c",
+			"cpp",
+			"h",
+			"css",
+			"html",
+			"json",
+			"xml",
+			"yaml",
+			"yml",
+			"sh",
+			"bash",
+			"toml",
+			"md",
+			"rb",
+			"php",
+			"cs",
+			"swift",
+			"kt",
 		].includes(ext)
 	)
 		return "code";
@@ -79,24 +102,57 @@ function FileTypeIcon({ fileName, className }: { fileName: string; className?: s
 	if (cat === "image")
 		return (
 			<svg className={cls} viewBox="0 0 20 20" fill="none">
-				<rect x="2" y="3" width="16" height="14" rx="2" stroke="currentColor" strokeWidth="1.5" />
+				<rect
+					x="2"
+					y="3"
+					width="16"
+					height="14"
+					rx="2"
+					stroke="currentColor"
+					strokeWidth="1.5"
+				/>
 				<circle cx="7" cy="8" r="1.5" stroke="currentColor" strokeWidth="1.25" />
-				<path d="M2 13l4-4 3 3 3-3 4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+				<path
+					d="M2 13l4-4 3 3 3-3 4 4"
+					stroke="currentColor"
+					strokeWidth="1.5"
+					strokeLinecap="round"
+					strokeLinejoin="round"
+				/>
 			</svg>
 		);
 
 	if (cat === "video")
 		return (
 			<svg className={cls} viewBox="0 0 20 20" fill="none">
-				<rect x="2" y="4" width="12" height="12" rx="2" stroke="currentColor" strokeWidth="1.5" />
-				<path d="M14 7.5l4-2v7l-4-2V7.5z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+				<rect
+					x="2"
+					y="4"
+					width="12"
+					height="12"
+					rx="2"
+					stroke="currentColor"
+					strokeWidth="1.5"
+				/>
+				<path
+					d="M14 7.5l4-2v7l-4-2V7.5z"
+					stroke="currentColor"
+					strokeWidth="1.5"
+					strokeLinejoin="round"
+				/>
 			</svg>
 		);
 
 	if (cat === "audio")
 		return (
 			<svg className={cls} viewBox="0 0 20 20" fill="none">
-				<path d="M8 15V5l8-2v10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+				<path
+					d="M8 15V5l8-2v10"
+					stroke="currentColor"
+					strokeWidth="1.5"
+					strokeLinecap="round"
+					strokeLinejoin="round"
+				/>
 				<circle cx="6" cy="15" r="2" stroke="currentColor" strokeWidth="1.5" />
 				<circle cx="14" cy="13" r="2" stroke="currentColor" strokeWidth="1.5" />
 			</svg>
@@ -105,42 +161,91 @@ function FileTypeIcon({ fileName, className }: { fileName: string; className?: s
 	if (cat === "pdf")
 		return (
 			<svg className={cls} viewBox="0 0 20 20" fill="none">
-				<path d="M4 4a2 2 0 012-2h5l5 5v9a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" stroke="currentColor" strokeWidth="1.5" />
+				<path
+					d="M4 4a2 2 0 012-2h5l5 5v9a2 2 0 01-2 2H6a2 2 0 01-2-2V4z"
+					stroke="currentColor"
+					strokeWidth="1.5"
+				/>
 				<path d="M11 2v5h5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-				<path d="M7 12h6M7 14.5h4" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" />
+				<path
+					d="M7 12h6M7 14.5h4"
+					stroke="currentColor"
+					strokeWidth="1.25"
+					strokeLinecap="round"
+				/>
 			</svg>
 		);
 
 	if (cat === "code")
 		return (
 			<svg className={cls} viewBox="0 0 20 20" fill="none">
-				<path d="M7 7l-4 3 4 3M13 7l4 3-4 3M11 5l-2 10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+				<path
+					d="M7 7l-4 3 4 3M13 7l4 3-4 3M11 5l-2 10"
+					stroke="currentColor"
+					strokeWidth="1.5"
+					strokeLinecap="round"
+					strokeLinejoin="round"
+				/>
 			</svg>
 		);
 
 	if (cat === "archive")
 		return (
 			<svg className={cls} viewBox="0 0 20 20" fill="none">
-				<rect x="2" y="6" width="16" height="11" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
+				<rect
+					x="2"
+					y="6"
+					width="16"
+					height="11"
+					rx="1.5"
+					stroke="currentColor"
+					strokeWidth="1.5"
+				/>
 				<path d="M2 9h16" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" />
-				<rect x="3" y="3" width="14" height="3" rx="1" stroke="currentColor" strokeWidth="1.25" />
-				<path d="M8 12.5h4" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" />
+				<rect
+					x="3"
+					y="3"
+					width="14"
+					height="3"
+					rx="1"
+					stroke="currentColor"
+					strokeWidth="1.25"
+				/>
+				<path
+					d="M8 12.5h4"
+					stroke="currentColor"
+					strokeWidth="1.25"
+					strokeLinecap="round"
+				/>
 			</svg>
 		);
 
 	if (cat === "text")
 		return (
 			<svg className={cls} viewBox="0 0 20 20" fill="none">
-				<path d="M4 4a2 2 0 012-2h5l5 5v9a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" stroke="currentColor" strokeWidth="1.5" />
+				<path
+					d="M4 4a2 2 0 012-2h5l5 5v9a2 2 0 01-2 2H6a2 2 0 01-2-2V4z"
+					stroke="currentColor"
+					strokeWidth="1.5"
+				/>
 				<path d="M11 2v5h5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-				<path d="M7 11h6M7 13.5h4" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" />
+				<path
+					d="M7 11h6M7 13.5h4"
+					stroke="currentColor"
+					strokeWidth="1.25"
+					strokeLinecap="round"
+				/>
 			</svg>
 		);
 
 	// default file icon
 	return (
 		<svg className={cls} viewBox="0 0 20 20" fill="none">
-			<path d="M4 4a2 2 0 012-2h5l5 5v9a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" stroke="currentColor" strokeWidth="1.5" />
+			<path
+				d="M4 4a2 2 0 012-2h5l5 5v9a2 2 0 01-2 2H6a2 2 0 01-2-2V4z"
+				stroke="currentColor"
+				strokeWidth="1.5"
+			/>
 			<path d="M11 2v5h5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
 		</svg>
 	);
@@ -227,7 +332,10 @@ export default function MyTransfersPage() {
 				return;
 			}
 			const { transfers: results, total: t } = await getTransfersByUploaderPage(
-				contractAddress, evmAddress, 0, ethRpcUrl,
+				contractAddress,
+				evmAddress,
+				0,
+				ethRpcUrl,
 			);
 			setTransfers(results);
 			setTotal(t);
@@ -242,7 +350,10 @@ export default function MyTransfersPage() {
 		setLoadingMore(true);
 		try {
 			const { transfers: more, total: t } = await getTransfersByUploaderPage(
-				contractAddress, evmAddress, transfers.length, ethRpcUrl,
+				contractAddress,
+				evmAddress,
+				transfers.length,
+				ethRpcUrl,
 			);
 			setTransfers((prev) => [...prev, ...more]);
 			setTotal(t);
@@ -333,9 +444,19 @@ export default function MyTransfersPage() {
 				if (sortKey === "name") {
 					cmp = (a.record.fileName || a.slug).localeCompare(b.record.fileName || b.slug);
 				} else if (sortKey === "expiry") {
-					cmp = a.record.expiresAt < b.record.expiresAt ? -1 : a.record.expiresAt > b.record.expiresAt ? 1 : 0;
+					cmp =
+						a.record.expiresAt < b.record.expiresAt
+							? -1
+							: a.record.expiresAt > b.record.expiresAt
+								? 1
+								: 0;
 				} else if (sortKey === "size") {
-					cmp = a.record.fileSize < b.record.fileSize ? -1 : a.record.fileSize > b.record.fileSize ? 1 : 0;
+					cmp =
+						a.record.fileSize < b.record.fileSize
+							? -1
+							: a.record.fileSize > b.record.fileSize
+								? 1
+								: 0;
 				}
 				return sortDir === "asc" ? cmp : -cmp;
 			});
@@ -400,7 +521,11 @@ export default function MyTransfersPage() {
 								</option>
 							))}
 						</select>
-						<button onClick={loadTransfers} disabled={loading} className="btn-secondary text-xs">
+						<button
+							onClick={loadTransfers}
+							disabled={loading}
+							className="btn-secondary text-xs"
+						>
 							{loading ? "Loading…" : "Refresh"}
 						</button>
 					</div>
@@ -426,7 +551,9 @@ export default function MyTransfersPage() {
 
 			{!loading && !loadError && transfers.length === 0 && (
 				<div className="card text-center py-10 space-y-3">
-					<p className="text-text-secondary text-sm">No transfers found for this address.</p>
+					<p className="text-text-secondary text-sm">
+						No transfers found for this address.
+					</p>
 					<Link to="/transfer" className="btn-secondary text-sm inline-block">
 						Upload your first file
 					</Link>
@@ -445,20 +572,22 @@ export default function MyTransfersPage() {
 					<div className="flex flex-wrap items-center justify-between gap-3">
 						{/* Status filter tabs */}
 						<div className="flex items-center gap-1 rounded-lg border border-white/[0.06] bg-white/[0.02] p-1">
-							{(["all", "active", "expired", "revoked"] as FilterStatus[]).map((f) => (
-								<button
-									key={f}
-									onClick={() => setFilterStatus(f)}
-									className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
-										filterStatus === f
-											? "bg-polka-500/20 text-polka-400"
-											: "text-text-muted hover:text-text-secondary"
-									}`}
-								>
-									{f.charAt(0).toUpperCase() + f.slice(1)}{" "}
-									<span className="opacity-60">{counts[f]}</span>
-								</button>
-							))}
+							{(["all", "active", "expired", "revoked"] as FilterStatus[]).map(
+								(f) => (
+									<button
+										key={f}
+										onClick={() => setFilterStatus(f)}
+										className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
+											filterStatus === f
+												? "bg-polka-500/20 text-polka-400"
+												: "text-text-muted hover:text-text-secondary"
+										}`}
+									>
+										{f.charAt(0).toUpperCase() + f.slice(1)}{" "}
+										<span className="opacity-60">{counts[f]}</span>
+									</button>
+								),
+							)}
 						</div>
 
 						{/* Sort controls */}
@@ -476,7 +605,9 @@ export default function MyTransfersPage() {
 								>
 									{k.charAt(0).toUpperCase() + k.slice(1)}
 									{sortKey === k && (
-										<span className="ml-1">{sortDir === "asc" ? "↑" : "↓"}</span>
+										<span className="ml-1">
+											{sortDir === "asc" ? "↑" : "↓"}
+										</span>
 									)}
 								</button>
 							))}
@@ -485,7 +616,9 @@ export default function MyTransfersPage() {
 
 					{displayedTransfers.length === 0 && (
 						<div className="card text-center py-8">
-							<p className="text-text-muted text-sm">No transfers match this filter.</p>
+							<p className="text-text-muted text-sm">
+								No transfers match this filter.
+							</p>
 						</div>
 					)}
 
@@ -510,20 +643,32 @@ export default function MyTransfersPage() {
 								<div key={slug} className="card space-y-3">
 									<div className="flex items-start gap-3">
 										<div className="w-8 h-8 rounded-lg bg-polka-500/10 border border-polka-500/20 flex items-center justify-center shrink-0 mt-0.5 text-polka-400">
-											<FileTypeIcon fileName={record.fileName || slug} className="w-4 h-4" />
+											<FileTypeIcon
+												fileName={record.fileName || slug}
+												className="w-4 h-4"
+											/>
 										</div>
 										<div className="min-w-0 flex-1">
 											<div className="flex items-center gap-2 flex-wrap">
 												<p className="text-text-primary font-medium text-sm break-all">
 													{record.fileName || `transfer-${slug}`}
 												</p>
-												<StatusBadge expired={record.expired} revoked={record.revoked} />
+												<StatusBadge
+													expired={record.expired}
+													revoked={record.revoked}
+												/>
 											</div>
 											<p className="text-text-muted text-xs mt-0.5">
 												{formatSize(record.fileSize)} ·{" "}
-												{record.chunkCount > 1n ? `${record.chunkCount} chunks · ` : ""}
+												{record.chunkCount > 1n
+													? `${record.chunkCount} chunks · `
+													: ""}
 												<span title={formatAbsDate(record.expiresAt)}>
-													{formatExpiry(record.expiresAt, record.expired, record.revoked)}
+													{formatExpiry(
+														record.expiresAt,
+														record.expired,
+														record.revoked,
+													)}
 												</span>
 												{isActive && " remaining"}
 											</p>
@@ -581,11 +726,15 @@ export default function MyTransfersPage() {
 									{/* Inline extend-expiry form */}
 									{isExtendOpen && (
 										<div className="rounded-lg border border-polka-500/20 bg-polka-500/[0.04] p-3 space-y-3">
-											<p className="text-xs text-text-secondary font-medium">Extend expiry</p>
+											<p className="text-xs text-text-secondary font-medium">
+												Extend expiry
+											</p>
 											<div className="flex items-center gap-2">
 												<select
 													value={extendHours}
-													onChange={(e) => setExtendHours(parseInt(e.target.value))}
+													onChange={(e) =>
+														setExtendHours(parseInt(e.target.value))
+													}
 													className="input-field text-xs flex-1"
 													disabled={isBeingExtended}
 												>
@@ -596,7 +745,9 @@ export default function MyTransfersPage() {
 													))}
 												</select>
 												<button
-													onClick={() => handleExtend(slug, record.expiresAt)}
+													onClick={() =>
+														handleExtend(slug, record.expiresAt)
+													}
 													disabled={isBeingExtended}
 													className="btn-secondary text-xs shrink-0 disabled:opacity-40"
 												>
@@ -613,7 +764,9 @@ export default function MyTransfersPage() {
 												</button>
 											</div>
 											{extendError && (
-												<p className="text-xs text-accent-red">{extendError}</p>
+												<p className="text-xs text-accent-red">
+													{extendError}
+												</p>
 											)}
 										</div>
 									)}
@@ -628,7 +781,9 @@ export default function MyTransfersPage() {
 							disabled={loadingMore}
 							className="btn-secondary w-full text-sm"
 						>
-							{loadingMore ? "Loading…" : `Load more (${transfers.length} of ${total})`}
+							{loadingMore
+								? "Loading…"
+								: `Load more (${transfers.length} of ${total})`}
 						</button>
 					)}
 				</>

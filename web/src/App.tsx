@@ -27,13 +27,20 @@ export default function App() {
 			/>
 
 			{/* Navigation */}
-			<nav className="sticky top-0 z-50 border-b border-white/[0.05] backdrop-blur-xl"
-				style={{ background: "rgba(6, 11, 20, 0.82)" }}>
+			<nav
+				className="sticky top-0 z-50 border-b border-white/[0.05] backdrop-blur-xl"
+				style={{ background: "rgba(6, 11, 20, 0.82)" }}
+			>
 				<div className="max-w-4xl mx-auto px-4 py-3 flex items-center gap-6">
 					<Link to="/" className="flex items-center gap-2.5 shrink-0 group">
 						<div className="w-7 h-7 rounded-lg bg-gradient-to-br from-polka-400 to-polka-700 flex items-center justify-center shadow-glow transition-shadow group-hover:shadow-glow-lg">
 							<svg viewBox="0 0 16 16" className="w-4 h-4" fill="none">
-								<path d="M8 2 L8 14 M2 8 L14 8" stroke="white" strokeWidth="1.8" strokeLinecap="round" />
+								<path
+									d="M8 2 L8 14 M2 8 L14 8"
+									stroke="white"
+									strokeWidth="1.8"
+									strokeLinecap="round"
+								/>
 								<circle cx="8" cy="8" r="2.5" fill="white" opacity="0.9" />
 							</svg>
 						</div>

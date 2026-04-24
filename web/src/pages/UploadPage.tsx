@@ -9,7 +9,11 @@ import {
 	MAX_TRANSFER_SIZE,
 	type BulletinUploadProgress,
 } from "../hooks/useBulletinUpload";
-import { createTransferRecord, checkContractDeployed, generateSlug } from "../hooks/useTransferContract";
+import {
+	createTransferRecord,
+	checkContractDeployed,
+	generateSlug,
+} from "../hooks/useTransferContract";
 import { getWalletClient } from "../config/evm";
 
 function getAppBaseUrl(): string {
@@ -148,8 +152,7 @@ export default function UploadPage() {
 		}
 	}
 
-	const shareLink =
-		step.type === "done" ? `${getAppBaseUrl()}/#/download/${step.slug}` : null;
+	const shareLink = step.type === "done" ? `${getAppBaseUrl()}/#/download/${step.slug}` : null;
 
 	const isWorking =
 		step.type === "authorizing" || step.type === "uploading" || step.type === "signing";
@@ -181,7 +184,8 @@ export default function UploadPage() {
 				<div>
 					<label className="label">Dev Account</label>
 					<p className="text-xs text-text-muted mb-1.5">
-						Pre-authorized dev account used for Bulletin Chain storage and PVM contract signing.
+						Pre-authorized dev account used for Bulletin Chain storage and PVM contract
+						signing.
 					</p>
 					<select
 						value={bulletinAccountIndex}
@@ -245,8 +249,8 @@ export default function UploadPage() {
 							isWorking
 								? "border-white/[0.06] opacity-50 cursor-not-allowed"
 								: dragging
-								? "border-polka-500 bg-polka-500/[0.06] shadow-glow cursor-copy"
-								: "border-white/[0.08] hover:border-white/[0.15] hover:bg-white/[0.02] cursor-pointer"
+									? "border-polka-500 bg-polka-500/[0.06] shadow-glow cursor-copy"
+									: "border-white/[0.08] hover:border-white/[0.15] hover:bg-white/[0.02] cursor-pointer"
 						}`}
 					>
 						<input
@@ -263,9 +267,13 @@ export default function UploadPage() {
 							{file ? (
 								<div className="space-y-1">
 									<p className="text-text-primary font-medium">{file.name}</p>
-									<p className="text-text-muted text-sm">{formatSize(file.size)}</p>
+									<p className="text-text-muted text-sm">
+										{formatSize(file.size)}
+									</p>
 									{!isWorking && (
-										<p className="text-text-muted text-xs">Drop another to replace</p>
+										<p className="text-text-muted text-xs">
+											Drop another to replace
+										</p>
 									)}
 								</div>
 							) : (
@@ -310,7 +318,11 @@ export default function UploadPage() {
 				<div className="card space-y-4">
 					<div className="flex items-center gap-2">
 						<div className="w-5 h-5 rounded-full bg-accent-green/20 flex items-center justify-center shrink-0">
-							<svg className="w-3 h-3 text-accent-green" viewBox="0 0 12 12" fill="none">
+							<svg
+								className="w-3 h-3 text-accent-green"
+								viewBox="0 0 12 12"
+								fill="none"
+							>
 								<path
 									d="M2 6l3 3 5-5"
 									stroke="currentColor"
@@ -365,7 +377,10 @@ export default function UploadPage() {
 						>
 							Upload another file
 						</button>
-						<Link to="/my-transfers" className="btn-secondary flex-1 text-sm text-center">
+						<Link
+							to="/my-transfers"
+							className="btn-secondary flex-1 text-sm text-center"
+						>
 							My Files
 						</Link>
 					</div>
@@ -430,8 +445,8 @@ function StepIndicator({ step }: { step: UploadStep }) {
 								isDone
 									? "bg-accent-green/20 text-accent-green"
 									: isActive
-									? "bg-polka-500/20 text-polka-400"
-									: "bg-white/[0.05] text-text-muted"
+										? "bg-polka-500/20 text-polka-400"
+										: "bg-white/[0.05] text-text-muted"
 							}`}
 						>
 							{isDone ? (
@@ -455,8 +470,8 @@ function StepIndicator({ step }: { step: UploadStep }) {
 										isDone
 											? "text-text-secondary"
 											: isActive
-											? "text-text-primary"
-											: "text-text-muted"
+												? "text-text-primary"
+												: "text-text-muted"
 									}`}
 								>
 									{s.label}
@@ -467,7 +482,9 @@ function StepIndicator({ step }: { step: UploadStep }) {
 							</div>
 							<p className="text-[11px] font-mono text-text-muted mt-0.5">{s.tech}</p>
 							{(isActive || isDone) && (
-								<p className={`text-xs mt-1 leading-relaxed ${isDone ? "text-text-muted" : "text-text-secondary"}`}>
+								<p
+									className={`text-xs mt-1 leading-relaxed ${isDone ? "text-text-muted" : "text-text-secondary"}`}
+								>
 									{isDone ? s.doneDetail : s.activeDetail}
 								</p>
 							)}

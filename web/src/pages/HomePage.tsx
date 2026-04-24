@@ -65,7 +65,12 @@ export default function HomePage() {
 				<div className="flex items-center gap-3">
 					<div className="w-10 h-10 rounded-xl bg-gradient-to-br from-polka-400 to-polka-700 flex items-center justify-center shadow-glow-lg">
 						<svg viewBox="0 0 16 16" className="w-5 h-5" fill="none">
-							<path d="M8 2 L8 14 M2 8 L14 8" stroke="white" strokeWidth="1.8" strokeLinecap="round" />
+							<path
+								d="M8 2 L8 14 M2 8 L14 8"
+								stroke="white"
+								strokeWidth="1.8"
+								strokeLinecap="round"
+							/>
 							<circle cx="8" cy="8" r="2.5" fill="white" opacity="0.9" />
 						</svg>
 					</div>
@@ -77,16 +82,24 @@ export default function HomePage() {
 					</h1>
 				</div>
 				<p className="text-text-secondary text-base leading-relaxed max-w-xl">
-					Decentralized file sharing on Polkadot. Upload any file to the Bulletin Chain and
-					share it via a PVM smart contract link — no servers, no middlemen.
+					Decentralized file sharing on Polkadot. Upload any file to the Bulletin Chain
+					and share it via a PVM smart contract link — no servers, no middlemen.
 				</p>
-				<Link
-					to="/transfer"
-					className="inline-flex items-center gap-2 btn-primary text-sm"
-				>
+				<Link to="/transfer" className="inline-flex items-center gap-2 btn-primary text-sm">
 					<svg viewBox="0 0 16 16" className="w-4 h-4" fill="none">
-						<path d="M8 2v9M4 7l4-5 4 5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-						<path d="M2 13h12" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+						<path
+							d="M8 2v9M4 7l4-5 4 5"
+							stroke="currentColor"
+							strokeWidth="1.6"
+							strokeLinecap="round"
+							strokeLinejoin="round"
+						/>
+						<path
+							d="M2 13h12"
+							stroke="currentColor"
+							strokeWidth="1.6"
+							strokeLinecap="round"
+						/>
 					</svg>
 					Send a file
 				</Link>
@@ -97,7 +110,13 @@ export default function HomePage() {
 				{[
 					{
 						icon: (
-							<path d="M8 2v9M4 7l4-5 4 5M2 13h12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+							<path
+								d="M8 2v9M4 7l4-5 4 5M2 13h12"
+								stroke="currentColor"
+								strokeWidth="1.5"
+								strokeLinecap="round"
+								strokeLinejoin="round"
+							/>
 						),
 						title: "Upload",
 						desc: "Drop any file up to 5 MiB. It's salted and stored on the Paseo Bulletin Chain, addressable as an IPFS CID.",
@@ -105,8 +124,21 @@ export default function HomePage() {
 					{
 						icon: (
 							<>
-								<rect x="2" y="3" width="12" height="10" rx="2" stroke="currentColor" strokeWidth="1.5" />
-								<path d="M5 8h6M5 11h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+								<rect
+									x="2"
+									y="3"
+									width="12"
+									height="10"
+									rx="2"
+									stroke="currentColor"
+									strokeWidth="1.5"
+								/>
+								<path
+									d="M5 8h6M5 11h4"
+									stroke="currentColor"
+									strokeWidth="1.5"
+									strokeLinecap="round"
+								/>
 							</>
 						),
 						title: "Record",
@@ -115,10 +147,33 @@ export default function HomePage() {
 					{
 						icon: (
 							<>
-								<circle cx="5" cy="8" r="2" stroke="currentColor" strokeWidth="1.5" />
-								<circle cx="11" cy="4" r="2" stroke="currentColor" strokeWidth="1.5" />
-								<circle cx="11" cy="12" r="2" stroke="currentColor" strokeWidth="1.5" />
-								<path d="M7 7l2.5-2M7 9l2.5 2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+								<circle
+									cx="5"
+									cy="8"
+									r="2"
+									stroke="currentColor"
+									strokeWidth="1.5"
+								/>
+								<circle
+									cx="11"
+									cy="4"
+									r="2"
+									stroke="currentColor"
+									strokeWidth="1.5"
+								/>
+								<circle
+									cx="11"
+									cy="12"
+									r="2"
+									stroke="currentColor"
+									strokeWidth="1.5"
+								/>
+								<path
+									d="M7 7l2.5-2M7 9l2.5 2"
+									stroke="currentColor"
+									strokeWidth="1.5"
+									strokeLinecap="round"
+								/>
 							</>
 						),
 						title: "Share",
@@ -131,7 +186,9 @@ export default function HomePage() {
 								{step.icon}
 							</svg>
 						</div>
-						<h3 className="font-semibold text-text-primary font-display">{step.title}</h3>
+						<h3 className="font-semibold text-text-primary font-display">
+							{step.title}
+						</h3>
 						<p className="text-sm text-text-secondary leading-relaxed">{step.desc}</p>
 					</div>
 				))}
@@ -182,7 +239,10 @@ export default function HomePage() {
 					<button onClick={() => applyPreset("local")} className="btn-secondary text-xs">
 						Local Dev
 					</button>
-					<button onClick={() => applyPreset("testnet")} className="btn-secondary text-xs">
+					<button
+						onClick={() => applyPreset("testnet")}
+						className="btn-secondary text-xs"
+					>
 						Paseo TestNet
 					</button>
 				</div>
@@ -198,7 +258,11 @@ export default function HomePage() {
 							placeholder={LOCAL_WS_URL}
 							className="input-field flex-1"
 						/>
-						<button onClick={handleConnect} disabled={connecting} className="btn-primary">
+						<button
+							onClick={handleConnect}
+							disabled={connecting}
+							className="btn-primary"
+						>
 							{connecting ? "Connecting…" : "Connect"}
 						</button>
 					</div>
@@ -216,7 +280,9 @@ export default function HomePage() {
 						placeholder={LOCAL_ETH_RPC_URL}
 						className="input-field w-full"
 					/>
-					<p className="text-xs text-text-muted mt-1.5">Used by the PVM contract calls.</p>
+					<p className="text-xs text-text-muted mt-1.5">
+						Used by the PVM contract calls.
+					</p>
 				</div>
 
 				{/* Status row */}

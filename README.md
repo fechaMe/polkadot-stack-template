@@ -9,13 +9,45 @@ File content is stored on the **Bulletin Chain** (Polkadot's permissioned public
 ## Table of Contents
 
 1. [Tech Stack](#tech-stack)
-2. [Architecture](#architecture)
-3. [Key Features](#key-features)
+2. [Key Features](#key-features)
+3. [Architecture](#architecture)
 4. [Local Setup](#local-setup)
 5. [Deployment](#deployment)
 6. [Testing](#testing)
 7. [Limitations](#limitations)
 8. [Key Versions](#key-versions)
+
+---
+
+## Key Features
+
+### 1. On-Demand Revocation
+
+Calling `revokeTransfer` sets `revoked = true` in PolkaVM storage. The flag is **permanent and irreversible** — not a database toggle. No admin override, no support ticket.
+
+### 2. Time-Bound Expiry
+
+Every record carries an `expiresAt` Unix timestamp enforced by `block.timestamp` in the contract. Access gates expire automatically without any cron job.
+
+### 3. Expiry Extension
+
+The uploader can call `extendExpiry(id, newExpiresAt)` to push the deadline forward. The contract enforces that the new timestamp must be strictly later than the current one.
+
+### 4. Enumeration-Resistant Share IDs
+
+Transfer IDs are client-generated 32-byte random values displayed as 12-character alphanumeric slugs. The contract rejects duplicate IDs but exposes no index.
+
+### 5. No Backend
+
+All state — CIDs, uploader address, expiry, revocation flag — is stored on-chain in the PVM contract. The frontend is a fully static site that reads directly from the node.
+
+### 6. Chunked + Salted Content Storage
+
+Large files are split into 8 MiB chunks and stored as separate Bulletin Chain statements. A random 32-byte salt is appended to the last chunk before upload so identical files produce distinct CIDs, preventing content correlation. Salt bytes are stripped transparently on download.
+
+### 7. Native Rust PVM Contract
+
+The contract (`contracts/pvm-rust/src/dot_transfer.rs`) is written in Rust (`no_std`) using `pallet-revive-uapi` for host function calls. The `pvm-contract-macros` proc-macro derives the Ethereum-compatible ABI from a companion Solidity interface file, making the contract callable by any EVM toolchain (viem, ethers, Hardhat).
 
 ---
 
@@ -102,38 +134,6 @@ sequenceDiagram
         FE-->>R: File download begins
     end
 ```
-
----
-
-## Key Features
-
-### 1. On-Demand Revocation
-
-Calling `revokeTransfer` sets `revoked = true` in PolkaVM storage. The flag is **permanent and irreversible** — not a database toggle. No admin override, no support ticket.
-
-### 2. Time-Bound Expiry
-
-Every record carries an `expiresAt` Unix timestamp enforced by `block.timestamp` in the contract. Access gates expire automatically without any cron job.
-
-### 3. Expiry Extension
-
-The uploader can call `extendExpiry(id, newExpiresAt)` to push the deadline forward. The contract enforces that the new timestamp must be strictly later than the current one.
-
-### 4. Enumeration-Resistant Share IDs
-
-Transfer IDs are client-generated 32-byte random values displayed as 12-character alphanumeric slugs. The contract rejects duplicate IDs but exposes no index.
-
-### 5. No Backend
-
-All state — CIDs, uploader address, expiry, revocation flag — is stored on-chain in the PVM contract. The frontend is a fully static site that reads directly from the node.
-
-### 6. Chunked + Salted Content Storage
-
-Large files are split into 8 MiB chunks and stored as separate Bulletin Chain statements. A random 32-byte salt is appended to the last chunk before upload so identical files produce distinct CIDs, preventing content correlation. Salt bytes are stripped transparently on download.
-
-### 7. Native Rust PVM Contract
-
-The contract (`contracts/pvm-rust/src/dot_transfer.rs`) is written in Rust (`no_std`) using `pallet-revive-uapi` for host function calls. The `pvm-contract-macros` proc-macro derives the Ethereum-compatible ABI from a companion Solidity interface file, making the contract callable by any EVM toolchain (viem, ethers, Hardhat).
 
 ---
 

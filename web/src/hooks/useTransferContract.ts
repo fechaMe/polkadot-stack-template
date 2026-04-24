@@ -211,12 +211,12 @@ export async function getTransfersByUploaderPage(
 	const publicClient = getPublicClient(ethRpcUrl);
 	const addr = contractAddress as Address;
 
-	const [transferIds, totalBig] = await publicClient.readContract({
+	const [transferIds, totalBig] = (await publicClient.readContract({
 		address: addr,
 		abi: dotTransferAbi,
 		functionName: "getTransfersByUploaderPage",
 		args: [uploaderAddress as Address, BigInt(offset), BigInt(PAGE_SIZE)],
-	}) as [readonly `0x${string}`[], bigint];
+	})) as [readonly `0x${string}`[], bigint];
 
 	const transfers = await Promise.all(
 		transferIds.map(async (transferId) => {
