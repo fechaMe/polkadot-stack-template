@@ -1,4 +1,4 @@
-# StarDot
+# [StarDot](https://stardot-fechame.dot.li/)
 
 A decentralised, temporary file-transfer dApp built on Polkadot (Rust `via cargo-pvm-contract` + PolkaVM + Vite). Upload a file, share a link, and revoke access at any time — with no backend, no accounts, and no intermediary holding the keys.
 
@@ -21,33 +21,29 @@ File content is stored on the **Bulletin Chain** (Polkadot's permissioned public
 
 ## Key Features
 
-### 1. On-Demand Revocation
+### 1. Native Rust PVM Contract
+
+The contract (`contracts/pvm-rust/src/dot_transfer.rs`) is written in Rust (`no_std`) using `pallet-revive-uapi` for host function calls. The `pvm-contract-macros` proc-macro derives the Ethereum-compatible ABI from a companion Solidity interface file, making the contract callable by any EVM toolchain (viem, ethers, Hardhat).
+
+### 2. On-Demand Revocation
 
 Calling `revokeTransfer` sets `revoked = true` in PolkaVM storage. The flag is **permanent and irreversible** — not a database toggle. No admin override, no support ticket.
 
-### 2. Time-Bound Expiry
+### 3. Time-Bound Expiry
 
 Every record carries an `expiresAt` Unix timestamp enforced by `block.timestamp` in the contract. Access gates expire automatically without any cron job.
 
-### 3. Expiry Extension
+### 4. Expiry Extension
 
 The uploader can call `extendExpiry(id, newExpiresAt)` to push the deadline forward. The contract enforces that the new timestamp must be strictly later than the current one.
 
-### 4. Enumeration-Resistant Share IDs
+### 5. Enumeration-Resistant Share IDs
 
 Transfer IDs are client-generated 32-byte random values displayed as 12-character alphanumeric slugs. The contract rejects duplicate IDs but exposes no index.
 
-### 5. No Backend
+### 6. No Backend
 
 All state — CIDs, uploader address, expiry, revocation flag — is stored on-chain in the PVM contract. The frontend is a fully static site that reads directly from the node.
-
-### 6. Chunked + Salted Content Storage
-
-Large files are split into 8 MiB chunks and stored as separate Bulletin Chain statements. A random 32-byte salt is appended to the last chunk before upload so identical files produce distinct CIDs, preventing content correlation. Salt bytes are stripped transparently on download.
-
-### 7. Native Rust PVM Contract
-
-The contract (`contracts/pvm-rust/src/dot_transfer.rs`) is written in Rust (`no_std`) using `pallet-revive-uapi` for host function calls. The `pvm-contract-macros` proc-macro derives the Ethereum-compatible ABI from a companion Solidity interface file, making the contract callable by any EVM toolchain (viem, ethers, Hardhat).
 
 ---
 
@@ -81,8 +77,8 @@ This project uses the **PVM path** throughout and implements the contract in Rus
 
 ```mermaid
 graph TD
-    FE["StarDot Frontend\nReact + Vite · :5173"]
-    RPC["eth-rpc Adapter\n:8545"]
+    FE["StarDot Frontend\nReact + Vite"]
+    RPC["eth-rpc Adapter"]
     Chain["Polkadot Asset Hub\npallet-revive → DotTransfer Contract\nRust · PolkaVM"]
     BL["Bulletin Chain\nFile chunks (IPFS-like)"]
 
@@ -104,10 +100,10 @@ sequenceDiagram
 
     S->>FE: Select file and choose expiry window
     FE->>BL: Check sender is authorised
-    FE->>BL: Upload file in chunks (max 8 MiB each)
+    FE->>BL: Upload file (max 5 MiB each)
     Note over FE,BL: Last chunk gets a random 32-byte salt —<br/>identical files produce distinct CIDs
     BL-->>FE: Return CID list
-    FE->>FE: Generate random 7-char share slug
+    FE->>FE: Generate random 12-char share slug
     FE->>SC: createTransfer(id, cids, expiresAt, fileSize, fileName, chunkCount)
     SC-->>FE: Emit TransferCreated event
     FE-->>S: Share link ready → /t/[slug]
@@ -129,8 +125,7 @@ sequenceDiagram
     alt revoked = true OR block.timestamp ≥ expiresAt
         FE-->>R: Access denied — link revoked or expired
     else Record is valid
-        FE->>BL: Fetch chunks by CID from paseo-ipfs.polkadot.io
-        FE->>FE: Reassemble chunks and strip salt bytes
+        FE->>BL: Fetch file by CID from paseo-ipfs.polkadot.io
         FE-->>R: File download begins
     end
 ```
@@ -185,22 +180,6 @@ If your platform cannot use the downloader-managed binaries, see the limited-sup
 The repo includes [`.nvmrc`](.nvmrc) and `engines` fields in the JavaScript projects to keep everyone on the same Node major version.
 
 ### Run locally
-
-```bash
-# Start node + eth-rpc + deploy contracts + start frontend (one command)
-./scripts/start-all.sh
-# Substrate RPC: ws://127.0.0.1:9944
-# Ethereum RPC:  http://127.0.0.1:8545
-# Frontend:      http://127.0.0.1:5173
-```
-
-Lighter options for faster iteration:
-
-```bash
-./scripts/start-dev.sh       # Solo dev node only (no relay chain / Zombienet)
-./scripts/start-local.sh     # Node + eth-rpc, no contract deploy or frontend
-./scripts/start-frontend.sh  # Frontend only (for an already-running chain)
-```
 
 ### Build Components Individually
 
@@ -293,15 +272,14 @@ cd web && npm run lint
 
 ## Limitations
 
-| Area                                  | Detail                                                                                                                                                                                                            |
-| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Bulletin Chain access**             | Uploads require the sender's address to be pre-authorised on the Bulletin Chain via the faucet. This is a hard gate; unauthorised uploads fail silently at the storage layer.                                     |
-| **No content deletion**               | `revokeTransfer` prevents the frontend gate from opening, but raw chunks remain on the Bulletin Chain. A recipient who cached the CIDs before revocation can still fetch them directly from Bulletin Chain nodes. |
-| **Expiry at the gate, not the store** | Expiry is enforced in the contract and the frontend — not at the IPFS layer. Chunks persist on Bulletin Chain past their expiry.                                                                                  |
-| **PVM contract tests**                | There is no offline PolkaVM test harness. The Rust contract must be tested against a live local node after deployment.                                                                                            |
-| **File size ceiling**                 | Upload size is gated by `MAX_TRANSFER_SIZE` in the frontend and by Bulletin Chain statement limits. Very large files may hit gas or per-statement size limits before the frontend cap.                            |
-| **Dev accounts in local mode**        | The frontend defaults to well-known Substrate dev accounts (Alice / Bob) locally. Production use requires a connected wallet (Spektr or browser extension).                                                       |
-| **Single deployed address**           | `deployments.json` stores one address per contract name. Multiple deployments (e.g., across branches or networks) overwrite each other; the intended multi-network workflow is not yet formalised.                |
+| Area | Detail |
+|---|---|
+| **N+1 trie reads** | `getTransfersByUploaderPage` returns IDs; the frontend then calls `getTransfer` per ID — ~180 Substrate trie traversals per page at `PAGE_SIZE=20`. Resolution: emit `TransferCreated` events and move batch reads to an off-chain indexer. |
+| **Events declared, not emitted** | `DotTransfer.sol` declares `TransferCreated/Revoked/ExpiryExtended` for ABI completeness. The Rust contract does not yet call `api::deposit_event`, which `pallet-revive-uapi` exposes and the riscv64 backend implements. |
+| **Expiry at the gate, not the store** | Expiry hides CIDs at the contract level; chunks persist on the Bulletin Chain indefinitely. Anyone who recorded CIDs before expiry can still fetch them from IPFS directly. |
+| **Bulletin Chain authorisation** | Uploads require the sender to be pre-authorised on the Bulletin Chain. Unauthorised attempts fail silently at the storage layer with no user-facing error. |
+| **No offline contract test harness** | No `pallet-revive` equivalent of `TestExternalities` exists yet. The Rust contract must be tested against a live local node after deployment. |
+| **File size ceiling** | CID list capped at `MAX_CIDS_LEN = 4096` bytes (~69 CIDv1 strings, ~550 MiB at 8 MiB chunks). Bulletin Chain per-statement limits may be hit before the frontend cap on very large files. |
 
 ---
 
