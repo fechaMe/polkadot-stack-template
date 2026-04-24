@@ -119,7 +119,7 @@ export default function HomePage() {
 							/>
 						),
 						title: "Upload",
-						desc: "Drop any file up to 5 MiB. It's salted and stored on the Paseo Bulletin Chain, addressable as an IPFS CID.",
+						desc: "Drop any file up to 5 MiB. It is stored on the Paseo Bulletin Chain via pallet-statement, and addressed as an IPFS CID.",
 					},
 					{
 						icon: (
@@ -142,7 +142,7 @@ export default function HomePage() {
 							</>
 						),
 						title: "Record",
-						desc: "A PolkaVM smart contract on Paseo Asset Hub indexes the transfer — uploader, CID, expiry, and file name — via pallet-revive.",
+						desc: "A PolkaVM smart contract on Paseo Asset Hub records the transfer — uploader address, CID list, expiry timestamp, and file name — via pallet-revive.",
 					},
 					{
 						icon: (
@@ -177,7 +177,7 @@ export default function HomePage() {
 							</>
 						),
 						title: "Share",
-						desc: "Copy the generated link. Recipients download directly from IPFS — the contract records the uploader's address and CID, so they can verify who sent it and that the file is intact.",
+						desc: "Copy the generated link. Recipients fetch directly from IPFS using the CID list stored in the contract. The uploader's address is recorded on-chain so recipients can verify who sent the file.",
 					},
 				].map((step) => (
 					<div key={step.title} className="card space-y-3">
@@ -199,7 +199,7 @@ export default function HomePage() {
 				{[
 					{
 						title: "No servers",
-						desc: "Files are stored on the Paseo Bulletin Chain via pallet-statement and retrieved directly from IPFS. The contract lives on Polkadot — nothing runs on a central host.",
+						desc: "Files are stored on the Paseo Bulletin Chain via pallet-statement and retrieved directly from IPFS. The contract runs on Polkadot — no application server or database is involved.",
 					},
 					{
 						title: "Configurable expiry",
@@ -207,7 +207,7 @@ export default function HomePage() {
 					},
 					{
 						title: "Uploader can revoke",
-						desc: "The uploader can revoke a transfer at any time. Revocation zeroes the stored CIDs on-chain, making the file unreachable even via direct IPFS lookups.",
+						desc: "The uploader can revoke a transfer at any time. Revocation zeroes the CID list in contract storage, removing the on-chain download reference. Pre-recorded CIDs remain accessible on IPFS until the Bulletin Chain data expires.",
 					},
 					{
 						title: "Enumeration-resistant IDs",
@@ -215,11 +215,11 @@ export default function HomePage() {
 					},
 					{
 						title: "Uploader identity on-chain",
-						desc: "The uploader's address is recorded immutably at creation time. Anyone with the link can verify who sent the file and that the bytes haven't changed since upload.",
+						desc: "The uploader's address is recorded at creation time and cannot be modified. Anyone with the link can verify the sender's address and confirm file integrity via the IPFS CID.",
 					},
 					{
 						title: "PolkaVM smart contract",
-						desc: "The transfer index is a native Rust contract compiled to RISC-V bytecode and executed by pallet-revive on Paseo Asset Hub, with full Ethereum RPC compatibility.",
+						desc: "The transfer registry is a native Rust no_std contract compiled to RISC-V bytecode and executed by pallet-revive on Paseo Asset Hub, with Ethereum-compatible JSON-RPC.",
 					},
 				].map((f) => (
 					<div key={f.title} className="card space-y-2">
